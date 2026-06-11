@@ -20,7 +20,7 @@
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
         .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .badge { padding: 4px 12px; border-radius: 40px; font-size: 12px; cursor: pointer; border: none; color: white; }
+        .fee-btn { padding: 4px 12px; border-radius: 40px; font-size: 12px; cursor: pointer; border: none; color: white; margin: 2px; }
         @media (max-width: 768px) { body { padding: 12px; } .card { padding: 16px; } }
     </style>
 </head>
@@ -78,7 +78,7 @@
         } catch (err) { alert(err.message); }
     }
 
-    // ---------- ADMIN DASHBOARD ----------
+    // ==================== ADMIN DASHBOARD ====================
     async function renderAdminDashboard() {
         const [students, contents, uploads] = await Promise.all([
             supabaseClient.from('users').select('*', { count: 'exact' }).eq('role', 'student'),
@@ -111,7 +111,7 @@
         await loadBirthdayAlerts();
     }
 
-    // ----- FIXED loadStudentTable with working fee toggles -----
+    // ----- Student Table with fee toggles (instant color change) -----
     async function loadStudentTable() {
         const { data: students } = await supabaseClient.from('users').select('*').eq('role', 'student');
         if (!students || students.length === 0) {
@@ -120,42 +120,41 @@
         }
         let html = `<table><thead><tr><th>Name</th><th>Email</th><th>Fees (Jan-Jun 2026)</th><th>Action</th></tr></thead><tbody>`;
         for (const s of students) {
-            // Fetch fees for this student
+            // Fetch current fee status for this student
             const { data: fees } = await supabaseClient.from('fees').select('*').eq('student_id', s.id).eq('academic_year', '2026');
-            let feeHtml = '';
             const months = ['Jan','Feb','Mar','Apr','May','Jun'];
+            let feeHtml = '';
             for (let month of months) {
                 const feeRecord = fees?.find(f => f.month === month);
                 const paid = feeRecord ? feeRecord.paid : false;
-                feeHtml += `<button class="badge" style="background:${paid ? '#10b981' : '#ef4444'}; margin:2px;" data-student="${s.id}" data-month="${month}">${month}</button> `;
+                const color = paid ? '#10b981' : '#ef4444';
+                feeHtml += `<button class="fee-btn" data-student="${s.id}" data-month="${month}" style="background:${color}">${month}</button> `;
             }
             html += `<tr>
                 <td>${s.full_name || s.email}</td>
                 <td>${s.email}</td>
-                <td id="fee-cell-${s.id}">${feeHtml}</td>
+                <td class="fee-cell" data-student="${s.id}">${feeHtml}</td>
                 <td><button class="btn-outline btn" onclick="window.viewProfile('${s.id}')">Profile</button></td>
             </tr>`;
         }
         html += `</tbody></table>`;
         document.getElementById('studentList').innerHTML = html;
 
-        // Attach event listeners to fee buttons
-        for (const s of students) {
-            const feeButtons = document.querySelectorAll(`#fee-cell-${s.id} .badge`);
-            feeButtons.forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const studentId = btn.getAttribute('data-student');
-                    const month = btn.getAttribute('data-month');
-                    await toggleFee(studentId, month);
-                });
+        // Attach click handlers to all fee buttons
+        document.querySelectorAll('.fee-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const studentId = btn.getAttribute('data-student');
+                const month = btn.getAttribute('data-month');
+                await toggleFee(studentId, month, btn);
             });
-        }
+        });
     }
 
-    async function toggleFee(studentId, month) {
-        console.log('Toggling fee for', studentId, month);
+    // Toggle fee: update DB and change button color instantly
+    async function toggleFee(studentId, month, buttonElement) {
         try {
-            // Check if fee record exists
+            // Check existing record
             const { data: existing, error: fetchError } = await supabaseClient
                 .from('fees')
                 .select('*')
@@ -165,50 +164,26 @@
                 .maybeSingle();
             if (fetchError) throw fetchError;
 
+            let newPaid;
             if (existing) {
-                // Update existing
-                const newPaid = !existing.paid;
+                newPaid = !existing.paid;
                 const { error: updateError } = await supabaseClient
                     .from('fees')
                     .update({ paid: newPaid })
                     .eq('id', existing.id);
                 if (updateError) throw updateError;
             } else {
-                // Insert new with paid = true
+                newPaid = true;
                 const { error: insertError } = await supabaseClient
                     .from('fees')
                     .insert({ student_id: studentId, month: month, academic_year: '2026', paid: true });
                 if (insertError) throw insertError;
             }
-            // Refresh just this student's fee buttons
-            await refreshStudentFees(studentId);
+            // Update button color immediately
+            buttonElement.style.backgroundColor = newPaid ? '#10b981' : '#ef4444';
         } catch (err) {
             console.error(err);
-            alert('Error updating fee: ' + err.message);
-        }
-    }
-
-    async function refreshStudentFees(studentId) {
-        const { data: fees } = await supabaseClient.from('fees').select('*').eq('student_id', studentId).eq('academic_year', '2026');
-        const months = ['Jan','Feb','Mar','Apr','May','Jun'];
-        let feeHtml = '';
-        for (let month of months) {
-            const feeRecord = fees?.find(f => f.month === month);
-            const paid = feeRecord ? feeRecord.paid : false;
-            feeHtml += `<button class="badge" style="background:${paid ? '#10b981' : '#ef4444'}; margin:2px;" data-student="${studentId}" data-month="${month}">${month}</button> `;
-        }
-        const cell = document.getElementById(`fee-cell-${studentId}`);
-        if (cell) {
-            cell.innerHTML = feeHtml;
-            // Reattach event listeners
-            const newButtons = cell.querySelectorAll('.badge');
-            newButtons.forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const sid = btn.getAttribute('data-student');
-                    const mon = btn.getAttribute('data-month');
-                    await toggleFee(sid, mon);
-                });
-            });
+            alert('Failed to update fee: ' + err.message);
         }
     }
 
@@ -219,7 +194,7 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
-    // ----- Content management -----
+    // ----- Content Management (working save/close) -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
         if (!contents || contents.length === 0) {
@@ -287,6 +262,7 @@
         document.getElementById('announceTitle').value = '';
         document.getElementById('announceMsg').value = '';
         loadAnnouncements();
+        alert('Announcement posted! Student will see it after refreshing.');
     }
 
     async function loadPendingUploads() {
@@ -297,7 +273,11 @@
         }
         let html = `<table><thead><tr><th>Student</th><th>File</th><th>Action</th></tr></thead><tbody>`;
         for (const u of data) {
-            html += `<tr><td>${u.users?.full_name || u.student_id}</td><td><a href="${u.file_url}" target="_blank">${u.file_name}</a></td><td><button class="btn" onclick="window.markSeen('${u.id}')">Mark Seen</button></td></tr>`;
+            html += `<tr>
+                <td>${u.users?.full_name || u.student_id}</td>
+                <td><a href="${u.file_url}" target="_blank">${u.file_name}</a></td>
+                <td><button class="btn" onclick="window.markSeen('${u.id}')">Mark Seen</button></td>
+            </tr>`;
         }
         html += `</tbody></table>`;
         document.getElementById('pendingUploads').innerHTML = html;
@@ -337,10 +317,17 @@
         }
     }
 
-    // ---------- STUDENT DASHBOARD (simplified but working) ----------
+    // ==================== STUDENT DASHBOARD ====================
     async function renderStudentDashboard() {
         renderPage(`
-            <div class="flex-between"><h2>${currentUser.name}'s Portal</h2><div><button id="logoutBtnStu" class="btn-outline btn">Logout</button> <button id="themeBtnStu" class="btn-outline btn">🌓</button></div></div>
+            <div class="flex-between">
+                <h2>${currentUser.name}'s Portal</h2>
+                <div>
+                    <button id="refreshStuBtn" class="btn-outline btn">🔄 Refresh</button>
+                    <button id="logoutBtnStu" class="btn-outline btn">Logout</button>
+                    <button id="themeBtnStu" class="btn-outline btn">🌓</button>
+                </div>
+            </div>
             <div class="card"><div class="flex-between"><h3>🏠 Home</h3><div id="studentStats"></div></div><div id="announcementsStu"></div></div>
             <div class="card"><h3>📘 Contents</h3><div id="contentsStu"></div></div>
             <div class="card"><h3>📈 My Progress</h3><input id="progressNote" placeholder="Practice note"><button class="btn" id="addProgressBtn">Add Entry</button><div id="progressList"></div></div>
@@ -350,6 +337,13 @@
         document.getElementById('themeBtnStu')?.addEventListener('click', toggleTheme);
         document.getElementById('addProgressBtn')?.addEventListener('click', addProgress);
         document.getElementById('uploadFileBtn')?.addEventListener('click', uploadFile);
+        document.getElementById('refreshStuBtn')?.addEventListener('click', () => {
+            loadStudentAnnouncements();
+            loadStudentContents();
+            loadStudentProgress();
+            loadStudentFiles();
+            loadStudentStats();
+        });
         await loadStudentAnnouncements();
         await loadStudentContents();
         await loadStudentProgress();
@@ -359,7 +353,7 @@
 
     async function loadStudentAnnouncements() {
         const { data } = await supabaseClient.from('announcements').select('*').eq('visible', true).order('created_at', { ascending: false });
-        document.getElementById('announcementsStu').innerHTML = data?.slice(0,3).map(a=>`<div><strong>${a.title}</strong>: ${a.message}</div>`).join('') || 'No announcements';
+        document.getElementById('announcementsStu').innerHTML = data?.slice(0,5).map(a=>`<div><strong>${a.title}</strong>: ${a.message}</div>`).join('') || 'No announcements';
     }
 
     async function loadStudentContents() {
@@ -408,9 +402,11 @@
         document.getElementById('studentStats').innerHTML = `<p>✅ Progress entries: ${progress?.length || 0}</p>`;
     }
 
+    // ==================== HELPERS ====================
     function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); }
     function logout() { currentUser = null; renderLogin(); }
 
+    // ==================== INIT ====================
     (async function start() {
         try {
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
