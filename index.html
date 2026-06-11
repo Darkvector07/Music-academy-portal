@@ -842,10 +842,25 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
   };
 
   // ─────────── INITIALIZE ───────────
-  (async () => {
-    await loadBranding();
-    renderLogin();
-  })();
+  // ... (all your existing function definitions)
+
+// ⭐ ADD THIS INITIALIZATION CODE AT THE VERY END ⭐
+(async () => {
+  try {
+    await loadBranding();   // Loads academy name & logo
+    renderLogin();          // Shows the login screen
+  } catch (err) {
+    // Show a friendly error message if something goes wrong
+    document.getElementById('app').innerHTML = `
+      <div style="max-width:500px; margin:3rem auto; padding:2rem; background:#fff3cd; border-radius:1rem; text-align:center;">
+        <h3>⚠️ Could not connect to database</h3>
+        <p style="color:red; word-break:break-all;">${err.message}</p>
+        <p>Check the console (F12) for more details.</p>
+        <p>Make sure your Supabase tables exist and RLS policies allow public read access.</p>
+      </div>`;
+    console.error('Init error:', err);
+  }
+})();
 </script>
 </body>
 </html>
