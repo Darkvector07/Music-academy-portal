@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>Harmony Academy · Music Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      transition: background 0.3s, color 0.3s;
+      background: #f0f9ff; color: #0c1f2b;
+    }
+    body.dark { background: #0b0b0f; color: #e0d6b0; }
+    body {
+      --bg: #ffffff; --card: #ffffff; --sidebar: #e0f2fe;
+      --primary: #0284c7; --primary-soft: #bae6fd; --text: #0c1f2b;
+      --muted: #475569; --border: #e2e8f0; --green: #10b981;
+      --red: #ef4444; --gold: #b68b40; --shadow: 0 8px 20px rgba(0,0,0,0.05);
+    }
+    body.dark {
+      --bg: #121212; --card: #1e1e2a; --sidebar: #1a1a24;
+      --primary: #d4af37; --primary-soft: #3a3520; --text: #f0e6c5;
+      --muted: #b0a887; --border: #3a3a4a; --green: #2dd4bf;
+      --red: #f87171; --gold: #d4af37; --shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    .app-container { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 260px; background: var(--sidebar); padding: 1.5rem 1rem;
+      display: flex; flex-direction: column; border-right: 1px solid var(--border);
+    }
+    .main-panel { flex: 1; padding: 2rem; background: var(--bg); overflow-y: auto; }
+    .card {
+      background: var(--card); border-radius: 1.2rem; padding: 1.5rem;
+      box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 1.2rem;
+    }
+    button {
+      background: var(--primary); color: white; border: none;
+      padding: 0.6rem 1.5rem; border-radius: 2.5rem; font-weight: 600;
+      cursor: pointer; font-family: 'Poppins', sans-serif; transition: 0.2s;
+      font-size: 0.9rem;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+    button.danger { background: var(--red); }
+    button.small { padding: 0.3rem 0.8rem; font-size: 0.8rem; }
+    input, select, textarea {
+      width: 100%; padding: 0.7rem 1rem; border-radius: 2rem;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text);
+      font-family: 'Poppins', sans-serif; margin: 0.3rem 0 0.8rem; outline: none;
+    }
+    textarea { border-radius: 1rem; }
+    .flex { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 1.5rem; }
+    .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 1.2rem; }
+    .stat-card {
+      background: var(--card); border-radius: 1.2rem; padding: 1.2rem;
+      text-align: center; box-shadow: var(--shadow); border: 1px solid var(--border);
+    }
+    .stat-card h3 { font-size: 2rem; }
+    .badge {
+      background: var(--primary); color: white; border-radius: 1rem;
+      padding: 0.2rem 0.8rem; font-size: 0.75rem; font-weight: 600;
+    }
+    .badge-green { background: var(--green); }
+    .badge-red { background: var(--red); }
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center;
+      justify-content: center; z-index: 1000;
+    }
+    .modal-box {
+      background: var(--card); border-radius: 1.5rem; padding: 2rem;
+      max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto;
+    }
+    .toast {
+      position: fixed; bottom: 25px; right: 25px; padding: 0.8rem 1.8rem;
+      border-radius: 2.5rem; z-index: 2000; font-weight: 500;
+      display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      background: #10b981; color: white;
+    }
+    .nav-btn {
+      display: block; width: 100%; text-align: left; background: transparent;
+      color: var(--text); padding: 0.7rem 1rem; border-radius: 0.8rem;
+      margin: 0.2rem 0; border: none; font-weight: 500; font-size: 0.95rem;
+    }
+    .nav-btn.active, .nav-btn:hover { background: var(--primary-soft); color: var(--primary); }
+    .tab-btn {
+      background: transparent; color: var(--text); border-bottom: 3px solid transparent;
+      border-radius: 0; padding: 0.5rem 1.2rem;
+    }
+    .tab-btn.active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 600; }
+    .spinner {
+      border: 3px solid var(--border); border-top: 3px solid var(--primary);
+      border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite;
+      margin: 2rem auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 26px; transition: 0.3s; }
+    .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+    input:checked + .toggle-slider { background: var(--primary); }
+    input:checked + .toggle-slider:before { transform: translateX(22px); }
+    .fee-dot {
+      display: inline-block; width: 38px; height: 38px; border-radius: 50%;
+      margin: 3px; cursor: pointer; border: 2px solid transparent;
+      text-align: center; line-height: 34px; font-size: 0.7rem; font-weight: 600;
+      transition: 0.2s;
+    }
+    .fee-dot:hover { border-color: var(--text); }
+    .content-type-icon { font-size: 2rem; margin-right: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+    @media (max-width: 768px) {
+      .app-container { flex-direction: column; }
+      .sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; padding: 0.8rem; }
+      .sidebar h2 { font-size: 1rem; }
+      .nav-btn { width: auto; font-size: 0.8rem; padding: 0.4rem 0.7rem; }
+      .main-panel { padding: 1rem; }
+      .grid2 { grid-template-columns: repeat(2, 1fr); }
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<script>
+  // ═══════════════════════════════════════
+  // 🔧 REPLACE WITH YOUR SUPABASE CREDENTIALS
+  // ═══════════════════════════════════════
+  const SUPABASE_URL = 'https://ktjlmpriqxghclekqxro.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0amxtcHJpcXhnaGNsZWtxeHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTc2NDksImV4cCI6MjA5NjczMzY0OX0.njPUK266yGgwDh8a5GUCv4lOXjS0M7hF26jvDP2iUvw';
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ─────────────── GLOBAL STATE ───────────────
+  let currentUser = null;
+  let branding = null;
+  let darkMode = localStorage.getItem('darkMode') === 'true';
+
+  function applyTheme() { document.body.classList.toggle('dark', darkMode); }
+  applyTheme();
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    t.style.background = isError ? '#ef4444' : '#10b981';
+    setTimeout(() => t.style.display = 'none', 2800);
+  }
+
+  function showSpinner(container) { container.innerHTML = '<div class="spinner"></div>'; }
+  
+  const appEl = document.getElementById('app');
+
+  async function loadBranding() {
+    const { data } = await supabase.from('branding').select('*').eq('id', 1).single();
+    if (data) branding = data;
+    else branding = { school_name: 'Harmony Music Academy', logo_url: '🎵', tagline: 'Where passion meets precision' };
+  }
+
+  // ─────────── LOGIN PAGE ───────────
+  function renderLogin() {
+    appEl.innerHTML = `
+      <div style="max-width:440px; margin:6vh auto; padding:2rem; text-align:center;">
+        <div style="display:flex; justify-content:flex-end; font-size:1.7rem; cursor:pointer;" id="themeToggleLogin">${darkMode?'☀️':'🌙'}</div>
+        <div style="font-size:3.5rem;">${branding?.logo_url || '🎵'}</div>
+        <h1 style="font-weight:600;">${branding?.school_name || 'Harmony Academy'}</h1>
+        <p style="color:var(--muted); margin-bottom:2rem;">${branding?.tagline || 'Where passion meets precision'}</p>
+        <input id="loginEmail" placeholder="Email" value="admin@harmony.com">
+        <input id="loginPassword" type="password" placeholder="Password" value="admin123">
+        <button id="loginBtn" style="width:100%; margin-top:0.6rem;">🔐 Login</button>
+        <p id="loginError" style="color:var(--red); margin-top:0.8rem;"></p>
+      </div>`;
+    document.getElementById('themeToggleLogin').addEventListener('click', () => {
+      darkMode = !darkMode; localStorage.setItem('darkMode', darkMode); applyTheme(); renderLogin();
+    });
+    document.getElementById('loginBtn').addEventListener('click', loginHandler);
+    document.getElementById('loginPassword').addEventListener('keypress', (e) => { if(e.key==='Enter') loginHandler(); });
+  }
+
+  async function loginHandler() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    if(!email || !password) { document.getElementById('loginError').textContent = 'Please fill all fields'; return; }
+    const { data: user, error } = await supabase.from('users').select('*').eq('email', email).eq('password', password).single();
+    if (error || !user) {
+      document.getElementById('loginError').textContent = 'Invalid credentials';
+      return;
+    }
+    if (user.role === 'student') {
+      const month = new Date().toISOString().slice(0, 7);
+      const { data: fee } = await supabase.from('fees').select('*').eq('student_id', user.id).eq('month', month).single();
+      if (!fee || fee.status !== 'paid') {
+        alert(`🚫 Access Restricted\n\nComplete payment for ${new Date().toLocaleString('default',{month:'long'})} to continue access.\n\nStatus: ${fee?.status || 'pending'}\n\nContact admin if already paid.`);
+        return;
+      }
+      if (!user.access_approved) {
+        alert('⏳ Access Pending\n\nYour payment is received but access is not yet activated. Contact your admin.');
+        return;
+      }
+    }
+    currentUser = user;
+    renderDashboard();
+  }
+
+  // ─────────── DASHBOARD ROUTER ───────────
+  function renderDashboard() {
+    if (!currentUser) { renderLogin(); return; }
+    if (currentUser.role === 'admin') renderAdminPanel();
+    else renderStudentPanel();
+  }
+</script>
+<script>
+  // ═══════════════════════════════════════
+  //              ADMIN PANEL
+  // ═══════════════════════════════════════
+  async function renderAdminPanel() {
+    await loadBranding();
+    appEl.innerHTML = `
+      <div class="app-container">
+        <div class="sidebar">
+          <h2 style="font-size:1.1rem;">${branding?.logo_url || '🎵'} ${branding?.school_name || 'Academy'}</h2>
+          <div style="margin:1.2rem 0;">
+            <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
+            <button class="nav-btn" data-section="students">👥 Students</button>
+            <button class="nav-btn" data-section="contents">📁 Contents</button>
+            <button class="nav-btn" data-section="announcements">📢 Announcements</button>
+            <button class="nav-btn" data-section="uploads">📤 Uploads</button>
+          </div>
+          <button id="logoutBtn" style="margin-top:auto;">🚪 Logout</button>
+          <span style="cursor:pointer; font-size:1.4rem; margin-top:0.5rem;" id="themeToggle">${darkMode?'☀️':'🌙'}</span>
+        </div>
+        <div class="main-panel" id="adminContent"><div class="spinner"></div></div>
+      </div>`;
+
+    document.getElementById('logoutBtn').addEventListener('click', () => { currentUser = null; renderLogin(); });
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      darkMode = !darkMode; localStorage.setItem('darkMode', darkMode); applyTheme(); renderAdminPanel();
+    });
+
+    const loadSection = (section) => {
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector(`[data-section="${section}"]`).classList.add('active');
+      const c = document.getElementById('adminContent');
+      if (section === 'dashboard') renderDashboardSection(c);
+      else if (section === 'students') renderStudentsSection(c);
+      else if (section === 'contents') renderContentsSection(c);
+      else if (section === 'announcements') renderAnnouncementsSection(c);
+      else if (section === 'uploads') renderUploadsSection(c);
+    };
+    document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', e => loadSection(e.target.dataset.section)));
+    loadSection('dashboard');
+  }
+
+  // ── DASHBOARD ──
+  async function renderDashboardSection(c) {
+    showSpinner(c);
+    const today = new Date();
+    const todayMD = today.toISOString().slice(5, 10);
+    const currentMonth = today.toISOString().slice(0, 7);
+    const { data: students } = await supabase.from('users').select('*').eq('role', 'student');
+    const { data: fees } = await supabase.from('fees').select('*').eq('month', currentMonth);
+    const { data: contents } = await supabase.from('contents').select('*');
+    const { data: uploads } = await supabase.from('uploads').select('*').eq('seen', false);
+    const { data: pendingPhotos } = await supabase.from('users').select('*').eq('role', 'student').eq('photo_status', 'pending');
+
+    const paidCount = fees?.filter(f => f.status === 'paid').length || 0;
+    const activeCount = students?.filter(s => s.access_approved).length || 0;
+    const totalStudents = students?.length || 0;
+    const bdayStudents = students?.filter(s => s.birth_date && s.birth_date.slice(5) === todayMD) || [];
+    const anniStudents = students?.filter(s => s.joining_date && s.joining_date.slice(5) === todayMD) || [];
+
+    c.innerHTML = `
+      <h2>📊 Dashboard</h2>
+      <p style="color:var(--muted);">${today.toDateString()}</p>
+      ${bdayStudents.map(s => `<div class="card" style="background:var(--primary-soft); text-align:center; font-size:1.1rem;">🎂 <b>Happy Birthday, ${s.full_name}!</b></div>`).join('')}
+      ${anniStudents.map(s => {
+        const years = today.getFullYear() - new Date(s.joining_date).getFullYear();
+        return `<div class="card" style="background:var(--primary-soft); text-align:center; font-size:1.1rem;">🎊 <b>${s.full_name} — ${years} Year${years>1?'s':''} Anniversary!</b></div>`;
+      }).join('')}
+      <div class="grid2" style="margin:1.5rem 0;">
+        <div class="stat-card"><h3>${totalStudents}</h3><small>Total Students</small></div>
+        <div class="stat-card"><h3 style="color:var(--green);">${activeCount}</h3><small>Active</small></div>
+        <div class="stat-card"><h3 style="color:var(--red);">${totalStudents - activeCount}</h3><small>Blocked</small></div>
+        <div class="stat-card"><h3 style="color:var(--green);">${paidCount}</h3><small>Paid This Month</small></div>
+        <div class="stat-card"><h3 style="color:var(--red);">${totalStudents - paidCount}</h3><small>Pending</small></div>
+        <div class="stat-card"><h3>${contents?.length || 0}</h3><small>Total Contents</small></div>
+        <div class="stat-card"><h3>${uploads?.length || 0}</h3><small>New Uploads</small></div>
+      </div>
+      ${pendingPhotos?.length ? `
+        <div class="card"><h3>🖼️ Pending Photo Approvals</h3>
+          ${pendingPhotos.map(s => `
+            <div class="flex-between" style="margin:0.5rem 0;">
+              <span><b>${s.full_name}</b> (${s.id})</span>
+              <div>
+                <button class="small badge-green" onclick="approvePhoto('${s.id}')">✅ Approve</button>
+                <button class="small badge-red" onclick="rejectPhoto('${s.id}')">❌ Reject</button>
+              </div>
+            </div>`).join('')}
+        </div>` : ''}
+      ${uploads?.length ? `<div class="card"><h3>📤 New Uploads (${uploads.length})</h3><button onclick="markAllSeen()">✓ Mark All Seen</button></div>` : ''}
+    `;
+  }
+
+  window.approvePhoto = async (id) => {
+    const { data: stu } = await supabase.from('users').select('pending_photo').eq('id', id).single();
+    await supabase.from('users').update({ profile_photo: stu.pending_photo, pending_photo: '', photo_status: 'approved' }).eq('id', id);
+    showToast('Photo approved'); renderAdminPanel();
+  };
+  window.rejectPhoto = async (id) => {
+    await supabase.from('users').update({ pending_photo: '', photo_status: 'rejected' }).eq('id', id);
+    showToast('Photo rejected'); renderAdminPanel();
+  };
+  window.markAllSeen = async () => {
+    await supabase.from('uploads').update({ seen: true }).eq('seen', false);
+    showToast('All marked seen'); renderAdminPanel();
+  };
+
+  // ── STUDENTS SECTION ──
+  async function renderStudentsSection(c) {
+    const { data: students } = await supabase.from('users').select('*').eq('role', 'student').order('id');
+    c.innerHTML = `
+      <div class="flex-between"><h2>👥 Students</h2><button id="addStudentBtn">+ Add Student</button></div>
+      <input id="studentSearch" placeholder="🔍 Search students..." style="margin:1rem 0;">
+      <div id="studentList">${students?.map(s => `
+        <div class="card flex-between">
+          <div class="flex">
+            ${s.profile_photo ? `<img src="${s.profile_photo}" width="40" height="40" style="border-radius:50%; object-fit:cover;">` : '<span style="font-size:2rem;">👤</span>'}
+            <div><b>${s.full_name}</b><br><small>${s.id} | ${s.instrument || 'N/A'}</small></div>
+          </div>
+          <div class="flex">
+            <span class="badge ${s.access_approved ? 'badge-green' : 'badge-red'}">${s.access_approved ? 'Active' : 'Blocked'}</span>
+            <button onclick="viewStudentProfile('${s.id}')">👁️ View</button>
+          </div>
+        </div>`).join('') || '<p>No students yet.</p>'}</div>
+      <div id="studentProfileView"></div>`;
+    document.getElementById('addStudentBtn').addEventListener('click', showAddStudentModal);
+    document.getElementById('studentSearch').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      document.querySelectorAll('#studentList .card').forEach(card => {
+        card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+  }
+
+  function showAddStudentModal() {
+    const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box"><h3>➕ Add New Student</h3>
+        <input id="aName" placeholder="Full Name*" required>
+        <input id="aPhone" placeholder="Phone">
+        <input id="aEmail" placeholder="Email*" type="email" required>
+        <input id="aPass" placeholder="Password*" type="password" required>
+        <input id="aInstrument" placeholder="Instrument (e.g., Piano)">
+        <input id="aExam" placeholder="Exam / Grade">
+        <label style="font-size:0.85rem;">Birth Date</label>
+        <input id="aBirth" type="date">
+        <label style="font-size:0.85rem;">Joining Date</label>
+        <input id="aJoin" type="date">
+        <div class="flex" style="margin-top:1rem;">
+          <button id="saveStudent">💾 Save</button>
+          <button class="secondary" id="cancelAdd">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#cancelAdd').onclick = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#saveStudent').onclick = async () => {
+      const name = document.getElementById('aName').value.trim();
+      const email = document.getElementById('aEmail').value.trim();
+      const pass = document.getElementById('aPass').value.trim();
+      if (!name || !email || !pass) { showToast('Name, Email & Password required', true); return; }
+      const { count } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'student');
+      const newId = 'STU' + String((count || 0) + 1).padStart(3, '0');
+      const { error } = await supabase.from('users').insert({
+        id: newId, role: 'student', email, password: pass, full_name: name,
+        phone: document.getElementById('aPhone').value, instrument: document.getElementById('aInstrument').value,
+        exam: document.getElementById('aExam').value,
+        birth_date: document.getElementById('aBirth').value || null,
+        joining_date: document.getElementById('aJoin').value || null,
+        access_approved: false
+      });
+      if (error) { showToast(error.message, true); return; }
+      overlay.remove(); renderAdminPanel(); showToast(`Student ${newId} added!`);
+    };
+  }
+
+  window.viewStudentProfile = async (id) => {
+    const container = document.getElementById('studentProfileView') || document.getElementById('adminContent');
+    showSpinner(container);
+    const { data: s } = await supabase.from('users').select('*').eq('id', id).single();
+    if (!s) { container.innerHTML = '<p>Student not found.</p>'; return; }
+    const { data: fees } = await supabase.from('fees').select('*').eq('student_id', id).order('month');
+    const { data: progress } = await supabase.from('progress').select('*').eq('student_id', id).order('entry_date', { ascending: false });
+    const currentYear = new Date().getFullYear();
+    const months = Array.from({ length: 12 }, (_, i) => `${currentYear}-${String(i + 1).padStart(2, '0')}`);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    container.innerHTML = `
+      <div class="card">
+        <div class="flex-between">
+          <h3>${s.full_name} <small>(${s.id})</small></h3>
+          <div>
+            <button class="secondary small" onclick="renderAdminPanel()">← Back to List</button>
+            <button class="danger small" onclick="deleteStudent('${s.id}')">🗑️ Delete</button>
+          </div>
+        </div>
+        <div class="flex" style="margin:0.8rem 0;">
+          ${s.profile_photo ? `<img src="${s.profile_photo}" width="70" height="70" style="border-radius:50%; object-fit:cover;">` : '<span style="font-size:3rem;">👤</span>'}
+          <div>
+            <p>📧 ${s.email} | 📞 ${s.phone || 'N/A'}</p>
+            <p>🎵 ${s.instrument || 'N/A'} | 📝 ${s.exam || 'N/A'}</p>
+            <p>🎂 ${s.birth_date || 'N/A'} | 📅 Joined: ${s.joining_date || 'N/A'}</p>
+            <p>Access: <span class="badge ${s.access_approved ? 'badge-green' : 'badge-red'}">${s.access_approved ? 'Active' : 'Blocked'}</span></p>
+          </div>
+        </div>
+        ${s.pending_photo ? `<div class="card" style="background:var(--primary-soft);"><b>🖼️ Pending Photo:</b><br><img src="${s.pending_photo}" width="80" style="border-radius:0.5rem;"><br>
+          <button class="small badge-green" onclick="approvePhoto('${s.id}');viewStudentProfile('${s.id}')">✅ Approve</button>
+          <button class="small badge-red" onclick="rejectPhoto('${s.id}');viewStudentProfile('${s.id}')">❌ Reject</button></div>` : ''}
+        
+        <h4 style="margin-top:1.2rem;">💰 Fee Grid (Click month to toggle Paid/Pending)</h4>
+        <div class="flex" style="justify-content:center;">${months.map(m => {
+          const fee = fees?.find(f => f.month === m);
+          let status = fee?.status || (m > currentMonth ? 'future' : 'pending');
+          const bg = status === 'paid' ? 'var(--green)' : status === 'pending' ? 'var(--red)' : '#b0b0b0';
+          const label = status === 'future' ? '-' : status === 'paid' ? '✓' : '✗';
+          const clickable = m <= currentMonth ? `onclick="toggleFee('${id}','${m}')"` : '';
+          return `<div class="fee-dot" style="background:${bg}; color:white;" ${clickable} title="${m}">${label}</div>`;
+        }).join('')}</div>
+
+        <h4 style="margin-top:1.5rem;">📈 Progress Entries</h4>
+        <button class="small" onclick="showAddProgressModal('${id}')">+ Add Entry</button>
+        <div style="margin-top:0.8rem;">
+          ${progress?.map(p => `
+            <div class="card" style="padding:0.8rem;">
+              <div class="flex-between">
+                <b>${p.title}</b> <small>${p.entry_date}</small>
+              </div>
+              ${p.video_link ? `<a href="${p.video_link}" target="_blank">▶️ Watch Video</a>` : ''}
+              ${p.comment ? `<p style="color:var(--muted);">${p.comment}</p>` : ''}
+              <button class="danger small" onclick="deleteProgress('${p.id}','${id}')">🗑️</button>
+            </div>`).join('') || '<p style="color:var(--muted);">No progress entries yet.</p>'}
+        </div>
+      </div>`;
+  };
+
+  window.toggleFee = async (studentId, month) => {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const { data: existing } = await supabase.from('fees').select('*').eq('student_id', studentId).eq('month', month).single();
+    const newStatus = existing?.status === 'paid' ? 'pending' : 'paid';
+    if (existing) {
+      await supabase.from('fees').update({ status: newStatus }).eq('student_id', studentId).eq('month', month);
+    } else {
+      await supabase.from('fees').insert({ student_id: studentId, month, status: newStatus });
+    }
+    if (month === currentMonth) {
+      await supabase.from('users').update({ access_approved: newStatus === 'paid' }).eq('id', studentId);
+    }
+    showToast(`Fee ${newStatus}`); viewStudentProfile(studentId);
+  };
+
+  window.deleteStudent = async (id) => {
+    if (!confirm(`Permanently delete student ${id}? This cannot be undone.`)) return;
+    await supabase.from('users').delete().eq('id', id);
+    showToast('Student deleted'); renderAdminPanel();
+  };
+
+  window.showAddProgressModal = (studentId) => {
+    const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box"><h3>Add Progress Entry</h3>
+        <input id="pTitle" placeholder="Title*">
+        <input id="pVideo" placeholder="Video link (optional)">
+        <textarea id="pComment" placeholder="Comment" rows="2"></textarea>
+        <label>Date</label><input id="pDate" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <div class="flex" style="margin-top:1rem;">
+          <button id="saveProgress">💾 Save</button><button class="secondary" id="cancelProgress">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#cancelProgress').onclick = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#saveProgress').onclick = async () => {
+      const title = document.getElementById('pTitle').value.trim();
+      if (!title) { showToast('Title required', true); return; }
+      await supabase.from('progress').insert({
+        student_id: studentId, title,
+        video_link: document.getElementById('pVideo').value,
+        comment: document.getElementById('pComment').value,
+        entry_date: document.getElementById('pDate').value
+      });
+      overlay.remove(); viewStudentProfile(studentId); showToast('Progress added');
+    };
+  };
+
+  window.deleteProgress = async (progressId, studentId) => {
+    if (!confirm('Delete this entry?')) return;
+    await supabase.from('progress').delete().eq('id', progressId);
+    viewStudentProfile(studentId); showToast('Entry deleted');
+  };
+
+  // ── CONTENTS SECTION ──
+  async function renderContentsSection(c) {
+    const { data: contents } = await supabase.from('contents').select('*').order('upload_date', { ascending: false });
+    const { data: students } = await supabase.from('users').select('id,full_name').eq('role', 'student');
+    c.innerHTML = `
+      <div class="flex-between"><h2>📁 Contents</h2><button onclick="showAddContentModal()">+ Add Content</button></div>
+      <div style="margin-top:1rem;">
+        ${contents?.map(ct => `
+          <div class="card flex-between">
+            <div class="flex">
+              <span class="content-type-icon">${ct.type === 'Video' ? '🎬' : ct.type === 'PDF' ? '📄' : '🎵'}</span>
+              <div><b>${ct.title}</b><br><small>${ct.type} | ${ct.upload_date}</small></div>
+            </div>
+            <div class="flex">
+              <button class="small secondary" onclick="manageContentAccess('${ct.id}')">🔑 Access</button>
+              <button class="small danger" onclick="deleteContent('${ct.id}')">🗑️</button>
+            </div>
+          </div>`).join('') || '<p style="color:var(--muted);">No content uploaded yet.</p>'}
+      </div>`;
+  }
+
+  window.showAddContentModal = () => {
+    const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box"><h3>➕ Add Content</h3>
+        <input id="cTitle" placeholder="Title*">
+        <select id="cType"><option>Video</option><option>PDF</option><option>Audio</option></select>
+        <input id="cLink" placeholder="Google Drive link*">
+        <label>Upload Date</label><input id="cDate" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <div class="flex" style="margin-top:1rem;">
+          <button id="saveContent">💾 Save</button><button class="secondary" id="cancelContent">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#cancelContent').onclick = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#saveContent').onclick = async () => {
+      const title = document.getElementById('cTitle').value.trim();
+      const link = document.getElementById('cLink').value.trim();
+      if (!title || !link) { showToast('Title and link required', true); return; }
+      await supabase.from('contents').insert({
+        title, type: document.getElementById('cType').value,
+        drive_link: link, upload_date: document.getElementById('cDate').value
+      });
+      overlay.remove(); renderAdminPanel(); showToast('Content added');
+    };
+  };
+
+  window.manageContentAccess = async (contentId) => {
+    const { data: students } = await supabase.from('users').select('id,full_name').eq('role', 'student');
+    const { data: access } = await supabase.from('content_access').select('student_id').eq('content_id', contentId);
+    const accessIds = access?.map(a => a.student_id) || [];
+    const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box"><h3>🔑 Manage Access</h3>
+        ${students?.map(s => `
+          <div class="flex-between" style="margin:0.4rem 0;">
+            <span>${s.full_name} (${s.id})</span>
+            <label class="toggle-switch">
+              <input type="checkbox" ${accessIds.includes(s.id) ? 'checked' : ''} onchange="toggleContentAccess('${contentId}','${s.id}', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>`).join('') || '<p>No students.</p>'}
+        <button class="secondary" style="margin-top:1rem;" onclick="this.closest('.modal-overlay').remove()">Close</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  };
+
+  window.toggleContentAccess = async (contentId, studentId, give) => {
+    if (give) {
+      await supabase.from('content_access').upsert({ content_id: contentId, student_id: studentId }, { onConflict: 'content_id,student_id' });
+    } else {
+      await supabase.from('content_access').delete().eq('content_id', contentId).eq('student_id', studentId);
+    }
+    showToast(give ? 'Access granted' : 'Access removed');
+  };
+
+  window.deleteContent = async (id) => {
+    if (!confirm('Delete this content?')) return;
+    await supabase.from('contents').delete().eq('id', id);
+    renderAdminPanel(); showToast('Content deleted');
+  };
+
+  // ── ANNOUNCEMENTS SECTION ──
+  async function renderAnnouncementsSection(c) {
+    const { data: announcements } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+    c.innerHTML = `
+      <div class="flex-between"><h2>📢 Announcements</h2><button onclick="showAddAnnouncementModal()">+ New</button></div>
+      <div style="margin-top:1rem;">
+        ${announcements?.map(a => `
+          <div class="card flex-between">
+            <div><b>${a.title}</b><br><small style="color:var(--muted);">${a.message}</small></div>
+            <div class="flex">
+              <button class="small ${a.active ? 'badge-green' : 'secondary'}" onclick="toggleAnnouncement('${a.id}', ${!a.active})">${a.active ? '👁️ Visible' : '🙈 Hidden'}</button>
+              <button class="small danger" onclick="deleteAnnouncement('${a.id}')">🗑️</button>
+            </div>
+          </div>`).join('') || '<p style="color:var(--muted);">No announcements.</p>'}
+      </div>`;
+  }
+
+  window.showAddAnnouncementModal = () => {
+    const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box"><h3>📢 New Announcement</h3>
+        <input id="anTitle" placeholder="Title*">
+        <textarea id="anMsg" placeholder="Message" rows="2"></textarea>
+        <div class="flex" style="margin-top:1rem;">
+          <button id="saveAnnouncement">Post</button><button class="secondary" id="cancelAnnouncement">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#cancelAnnouncement').onclick = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('#saveAnnouncement').onclick = async () => {
+      const title = document.getElementById('anTitle').value.trim();
+      if (!title) { showToast('Title required', true); return; }
+      await supabase.from('announcements').insert({ title, message: document.getElementById('anMsg').value, active: true });
+      overlay.remove(); renderAdminPanel(); showToast('Announcement posted');
+    };
+  };
+
+  window.toggleAnnouncement = async (id, active) => {
+    await supabase.from('announcements').update({ active }).eq('id', id);
+    renderAdminPanel(); showToast(active ? 'Visible' : 'Hidden');
+  };
+
+  window.deleteAnnouncement = async (id) => {
+    if (!confirm('Delete announcement?')) return;
+    await supabase.from('announcements').delete().eq('id', id);
+    renderAdminPanel(); showToast('Deleted');
+  };
+
+  // ── UPLOADS SECTION ──
+  async function renderUploadsSection(c) {
+    const { data: uploads } = await supabase.from('uploads').select('*').order('uploaded_at', { ascending: false });
+    c.innerHTML = `
+      <div class="flex-between"><h2>📤 Student Uploads</h2><button onclick="markAllSeen()">✓ Mark All Seen</button></div>
+      <div style="margin-top:1rem;">
+        ${uploads?.map(u => `
+          <div class="card flex-between">
+            <div class="flex">
+              ${!u.seen ? '<span class="badge badge-red">NEW</span>' : ''}
+              <div><b>${u.file_name}</b><br><small>${u.student_id} | ${new Date(u.uploaded_at).toLocaleDateString()}</small></div>
+            </div>
+            <a href="${u.drive_link}" target="_blank" class="badge">🔗 Open</a>
+          </div>`).join('') || '<p style="color:var(--muted);">No uploads yet.</p>'}
+      </div>`;
+  }
+</script>
+<script>
+  // ═══════════════════════════════════════
+  //              STUDENT PANEL
+  // ═══════════════════════════════════════
+  async function renderStudentPanel() {
+    await loadBranding();
+    const s = currentUser;
+    appEl.innerHTML = `
+      <div class="app-container">
+        <div class="sidebar">
+          <h2 style="font-size:1.1rem;">${branding?.logo_url || '🎵'} ${branding?.school_name || 'Academy'}</h2>
+          <p style="color:var(--muted); font-size:0.85rem;">Welcome, ${s.full_name}</p>
+          <div style="margin:1rem 0;">
+            <button class="nav-btn active" data-tab="home">🏠 Home</button>
+            <button class="nav-btn" data-tab="contents">📁 Contents</button>
+            <button class="nav-btn" data-tab="progress">📈 Progress</button>
+            <button class="nav-btn" data-tab="files">📤 My Files</button>
+          </div>
+          <button id="logoutStudent" style="margin-top:auto;">🚪 Logout</button>
+          <span style="cursor:pointer; font-size:1.4rem; margin-top:0.5rem;" id="themeToggleStudent">${darkMode?'☀️':'🌙'}</span>
+        </div>
+        <div class="main-panel" id="studentContent"><div class="spinner"></div></div>
+      </div>`;
+    document.getElementById('logoutStudent').addEventListener('click', () => { currentUser = null; renderLogin(); });
+    document.getElementById('themeToggleStudent').addEventListener('click', () => {
+      darkMode = !darkMode; localStorage.setItem('darkMode', darkMode); applyTheme(); renderStudentPanel();
+    });
+    const loadTab = (tab) => {
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+      const c = document.getElementById('studentContent');
+      if (tab === 'home') renderStudentHome(c);
+      else if (tab === 'contents') renderStudentContents(c);
+      else if (tab === 'progress') renderStudentProgress(c);
+      else if (tab === 'files') renderStudentFiles(c);
+    };
+    document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', e => loadTab(e.target.dataset.tab)));
+    loadTab('home');
+  }
+
+  async function renderStudentHome(c) {
+    const s = currentUser;
+    const today = new Date();
+    const todayMD = today.toISOString().slice(5, 10);
+    const currentMonth = today.toISOString().slice(0, 7);
+    const currentYear = today.getFullYear();
+    const months = Array.from({ length: 12 }, (_, i) => `${currentYear}-${String(i + 1).padStart(2, '0')}`);
+    const { data: fees } = await supabase.from('fees').select('*').eq('student_id', s.id).order('month');
+    const { data: announcements } = await supabase.from('announcements').select('*').eq('active', true).order('created_at', { ascending: false });
+    const isBday = s.birth_date && s.birth_date.slice(5) === todayMD;
+    const isAnni = s.joining_date && s.joining_date.slice(5) === todayMD;
+    const anniYears = isAnni ? today.getFullYear() - new Date(s.joining_date).getFullYear() : 0;
+    const { data: refreshedUser } = await supabase.from('users').select('*').eq('id', s.id).single();
+    if (refreshedUser) currentUser = refreshedUser;
+
+    c.innerHTML = `
+      ${isBday ? `<div class="card" style="background:var(--primary-soft); text-align:center; font-size:1.2rem;">🎂 <b>Happy Birthday, ${s.full_name}!</b> 🎉</div>` : ''}
+      ${isAnni ? `<div class="card" style="background:var(--primary-soft); text-align:center; font-size:1.2rem;">🎊 <b>Happy ${anniYears}-Year Anniversary!</b></div>` : ''}
+      ${announcements?.map(a => `<div class="card" style="border-left:4px solid var(--primary);"><b>📢 ${a.title}</b><br>${a.message}</div>`).join('') || ''}
+
+      <div class="card">
+        <div class="flex">
+          ${currentUser.profile_photo ? `<img src="${currentUser.profile_photo}" width="80" height="80" style="border-radius:50%; object-fit:cover;">` : '<span style="font-size:3rem;">👤</span>'}
+          <div>
+            <h3>${currentUser.full_name}</h3>
+            <p>🎵 ${currentUser.instrument || 'N/A'} | 📝 ${currentUser.exam || 'N/A'}</p>
+            <p>📧 ${currentUser.email} | 📞 ${currentUser.phone || 'N/A'}</p>
+            <p>📅 Joined: ${currentUser.joining_date || 'N/A'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>🖼️ Profile Photo</h4>
+        <p style="color:var(--muted); font-size:0.85rem;">Paste a direct image link. Admin must approve.</p>
+        <div class="flex">
+          <input id="photoLink" placeholder="https://... image link" style="flex:1;">
+          <button onclick="submitPhoto()">Submit</button>
+        </div>
+        <p>Status: <span class="badge ${currentUser.photo_status === 'approved' ? 'badge-green' : currentUser.photo_status === 'pending' ? '' : 'badge-red'}">${currentUser.photo_status || 'None'}</span></p>
+      </div>
+
+      <div class="card">
+        <h4>💰 Fee Status (${currentYear})</h4>
+        <div class="flex" style="justify-content:center;">${months.map(m => {
+          const fee = fees?.find(f => f.month === m);
+          let status = fee?.status || (m > currentMonth ? 'future' : 'pending');
+          const bg = status === 'paid' ? 'var(--green)' : status === 'pending' ? 'var(--red)' : '#b0b0b0';
+          const label = status === 'future' ? '-' : status === 'paid' ? '✓' : '✗';
+          return `<div class="fee-dot" style="background:${bg}; color:white; cursor:default;" title="${m}">${label}</div>`;
+        }).join('')}</div>
+      </div>`;
+  }
+
+  window.submitPhoto = async () => {
+    const link = document.getElementById('photoLink').value.trim();
+    if (!link) { showToast('Paste an image link', true); return; }
+    await supabase.from('users').update({ pending_photo: link, photo_status: 'pending' }).eq('id', currentUser.id);
+    showToast('Photo submitted for approval'); renderStudentPanel();
+  };
+
+  async function renderStudentContents(c) {
+    const { data: access } = await supabase.from('content_access').select('content_id').eq('student_id', currentUser.id);
+    const contentIds = access?.map(a => a.content_id) || [];
+    let query = supabase.from('contents').select('*');
+    if (contentIds.length) query = query.in('id', contentIds);
+    else query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+    const { data: contents } = await query.order('upload_date', { ascending: false });
+    c.innerHTML = `
+      <h2>📁 My Contents</h2>
+      <div class="flex" style="margin:0.8rem 0;">
+        <select id="sortContents" onchange="renderStudentContents(document.getElementById('studentContent'))">
+          <option value="newest">Date: Newest</option><option value="oldest">Date: Oldest</option>
+          <option value="az">Name A-Z</option><option value="za">Name Z-A</option>
+        </select>
+        <select id="filterType" onchange="renderStudentContents(document.getElementById('studentContent'))">
+          <option>All</option><option>Video</option><option>PDF</option><option>Audio</option>
+        </select>
+      </div>
+      <div id="contentGrid" class="grid3">${renderContentCards(contents || [])}</div>`;
+  }
+
+  function renderContentCards(contents) {
+    let filtered = [...contents];
+    const filterType = document.getElementById('filterType')?.value;
+    const sortBy = document.getElementById('sortContents')?.value;
+    if (filterType && filterType !== 'All') filtered = filtered.filter(c => c.type === filterType);
+    if (sortBy === 'oldest') filtered.sort((a,b) => a.upload_date.localeCompare(b.upload_date));
+    else if (sortBy === 'az') filtered.sort((a,b) => a.title.localeCompare(b.title));
+    else if (sortBy === 'za') filtered.sort((a,b) => b.title.localeCompare(a.title));
+    else filtered.sort((a,b) => b.upload_date.localeCompare(a.upload_date));
+    return filtered.map(ct => `
+      <div class="card" style="text-align:center;">
+        <span style="font-size:2.5rem;">${ct.type === 'Video' ? '🎬' : ct.type === 'PDF' ? '📄' : '🎵'}</span>
+        <h4>${ct.title}</h4>
+        <small style="color:var(--muted);">${ct.type} | ${ct.upload_date}</small><br>
+        <a href="${ct.drive_link}" target="_blank"><button class="small" style="margin-top:0.5rem;">🔗 Open</button></a>
+      </div>`).join('') || '<p style="color:var(--muted);">No content assigned to you yet.</p>';
+  }
+
+  async function renderStudentProgress(c) {
+    const { data: progress } = await supabase.from('progress').select('*').eq('student_id', currentUser.id).order('entry_date', { ascending: false });
+    c.innerHTML = `
+      <h2>📈 My Progress</h2>
+      <div style="margin-top:1rem;">
+        ${progress?.map(p => `
+          <div class="card">
+            <div class="flex-between"><b>${p.title}</b><small>${p.entry_date}</small></div>
+            ${p.video_link ? `<a href="${p.video_link}" target="_blank">▶️ Watch Video</a>` : ''}
+            ${p.comment ? `<p style="color:var(--muted); margin-top:0.5rem;">${p.comment}</p>` : ''}
+          </div>`).join('') || '<p style="color:var(--muted);">No progress entries yet.</p>'}
+      </div>`;
+  }
+
+  async function renderStudentFiles(c) {
+    const { data: uploads } = await supabase.from('uploads').select('*').eq('student_id', currentUser.id).order('uploaded_at', { ascending: false });
+    c.innerHTML = `
+      <h2>📤 My Files</h2>
+      <div class="card">
+        <h4>Upload New File</h4>
+        <input id="uploadFileName" placeholder="File name*">
+        <input id="uploadFileLink" placeholder="Google Drive link*">
+        <button onclick="submitFileUpload()">📤 Upload</button>
+      </div>
+      <div style="margin-top:1rem;">
+        ${uploads?.map(u => `
+          <div class="card flex-between">
+            <span><b>${u.file_name}</b> <small>${new Date(u.uploaded_at).toLocaleDateString()}</small></span>
+            <a href="${u.drive_link}" target="_blank" class="badge">🔗 Open</a>
+          </div>`).join('') || '<p style="color:var(--muted);">No files uploaded yet.</p>'}
+      </div>`;
+  }
+
+  window.submitFileUpload = async () => {
+    const name = document.getElementById('uploadFileName')?.value.trim();
+    const link = document.getElementById('uploadFileLink')?.value.trim();
+    if (!name || !link) { showToast('File name and link required', true); return; }
+    await supabase.from('uploads').insert({ student_id: currentUser.id, file_name: name, drive_link: link, seen: false });
+    showToast('File uploaded!'); renderStudentPanel();
+  };
+
+  // ─────────── INITIALIZE ───────────
+  (async () => {
+    await loadBranding();
+    renderLogin();
+  })();
+</script>
+</body>
+</html>
