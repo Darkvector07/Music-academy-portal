@@ -111,16 +111,15 @@
         await loadBirthdayAlerts();
     }
 
-    // ----- Student Table with fee toggles (instant color change) -----
+    // ----- Student Table with fee toggles -----
     async function loadStudentTable() {
         const { data: students } = await supabaseClient.from('users').select('*').eq('role', 'student');
         if (!students || students.length === 0) {
             document.getElementById('studentList').innerHTML = '<p>No students found.</p>';
             return;
         }
-        let html = `<table><thead><tr><th>Name</th><th>Email</th><th>Fees (Jan-Jun 2026)</th><th>Action</th></tr></thead><tbody>`;
+        let html = `</table><thead><tr><th>Name</th><th>Email</th><th>Fees (Jan-Jun 2026)</th><th>Action</th></tr></thead><tbody>`;
         for (const s of students) {
-            // Fetch current fee status for this student
             const { data: fees } = await supabaseClient.from('fees').select('*').eq('student_id', s.id).eq('academic_year', '2026');
             const months = ['Jan','Feb','Mar','Apr','May','Jun'];
             let feeHtml = '';
@@ -151,10 +150,8 @@
         });
     }
 
-    // Toggle fee: update DB and change button color instantly
     async function toggleFee(studentId, month, buttonElement) {
         try {
-            // Check existing record
             const { data: existing, error: fetchError } = await supabaseClient
                 .from('fees')
                 .select('*')
@@ -179,7 +176,6 @@
                     .insert({ student_id: studentId, month: month, academic_year: '2026', paid: true });
                 if (insertError) throw insertError;
             }
-            // Update button color immediately
             buttonElement.style.backgroundColor = newPaid ? '#10b981' : '#ef4444';
         } catch (err) {
             console.error(err);
@@ -194,7 +190,7 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
-    // ----- Content Management (working save/close) -----
+    // ----- Content Management (with Google Drive / external links) -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
         if (!contents || contents.length === 0) {
@@ -249,6 +245,26 @@
         loadContentTable(); 
     };
 
+    // Modified: Add content with Google Drive / external link
+    async function showAddContentModal() {
+        const title = prompt('📘 Content Title:');
+        if (!title) return;
+        const type = prompt('📁 Type (video / pdf / audio / document):');
+        if (!type) return;
+        const description = prompt('📝 Description (optional):');
+        const fileUrl = prompt('🔗 Google Drive or external file URL:\nExample: https://drive.google.com/file/d/.../view?usp=sharing');
+        if (!fileUrl) return;
+        await supabaseClient.from('contents').insert({
+            title: title,
+            type: type.toLowerCase(),
+            description: description || '',
+            file_url: fileUrl,
+            created_at: new Date()
+        });
+        loadContentTable();
+        alert('✅ Content added! Students with access will see the link.');
+    }
+
     async function loadAnnouncements() {
         const { data } = await supabaseClient.from('announcements').select('*').order('created_at', { ascending: false });
         document.getElementById('announcementsList').innerHTML = data?.map(a=>`<div class="card" style="margin-top:8px;"><strong>${a.title}</strong><p>${a.message}</p><small>${new Date(a.created_at).toLocaleString()}</small></div>`).join('') || '';
@@ -262,7 +278,7 @@
         document.getElementById('announceTitle').value = '';
         document.getElementById('announceMsg').value = '';
         loadAnnouncements();
-        alert('Announcement posted! Student will see it after refreshing.');
+        alert('Announcement posted! Student will see it after clicking Refresh.');
     }
 
     async function loadPendingUploads() {
@@ -304,16 +320,6 @@
         if (name && email && pwd) {
             await supabaseClient.from('users').insert({ full_name: name, email, password: pwd, role: 'student', access_approved: true });
             loadStudentTable();
-        }
-    }
-
-    async function showAddContentModal() {
-        const title = prompt('Title');
-        const type = prompt('Type (video/pdf/audio)');
-        const desc = prompt('Description');
-        if (title) {
-            await supabaseClient.from('contents').insert({ title, type, description: desc, created_at: new Date() });
-            loadContentTable();
         }
     }
 
@@ -364,7 +370,7 @@
             return;
         }
         const { data } = await supabaseClient.from('contents').select('*').in('id', accessibleIds);
-        document.getElementById('contentsStu').innerHTML = data?.map(c=>`<div class="card" style="margin-bottom:8px;"><strong>${c.title}</strong> (${c.type})<br>${c.description || ''}<br><a href="${c.file_url}" target="_blank">Open</a></div>`).join('') || '';
+        document.getElementById('contentsStu').innerHTML = data?.map(c=>`<div class="card" style="margin-bottom:8px;"><strong>${c.title}</strong> (${c.type})<br>${c.description || ''}<br><a href="${c.file_url}" target="_blank" rel="noopener noreferrer">🔗 Open</a></div>`).join('') || '';
     }
 
     async function loadStudentProgress() {
