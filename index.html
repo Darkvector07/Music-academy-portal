@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; transition: background 0.3s, color 0.2s; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         :root { --bg: #f8fafc; --card: #ffffff; --text: #0f172a; --border: #e2e8f0; --primary: #7c3aed; --success: #10b981; --danger: #ef4444; }
         body.dark { --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; --primary: #a78bfa; }
         body { background: var(--bg); color: var(--text); padding: 20px; min-height: 100vh; }
@@ -15,20 +15,19 @@
         .card { background: var(--card); border-radius: 24px; padding: 24px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid var(--border); margin-bottom: 20px; }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 40px; cursor: pointer; font-weight: 500; }
         .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
-        input, select, textarea { background: var(--card); border: 1px solid var(--border); padding: 12px; border-radius: 16px; color: var(--text); width: 100%; margin-bottom: 12px; }
+        input, select, textarea { background: var(--card); border: 1px solid var(--border); padding: 12px; border-radius: 16px; width: 100%; margin-bottom: 12px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
         .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .badge { padding: 4px 12px; border-radius: 40px; font-size: 12px; cursor: pointer; border: none; }
-        @media (max-width: 768px) { body { padding: 12px; } .card { padding: 16px; } th, td { font-size: 14px; } }
+        .badge { padding: 4px 12px; border-radius: 40px; font-size: 12px; cursor: pointer; border: none; color: white; }
+        @media (max-width: 768px) { body { padding: 12px; } .card { padding: 16px; } }
     </style>
 </head>
 <body>
 <div id="app" class="container"></div>
 
 <script>
-    // ---------- SUPABASE ----------
     const SUPABASE_URL = 'https://ktjlmpriqxghclekqxro.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0amxtcHJpcXhnaGNsZWtxeHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTc2NDksImV4cCI6MjA5NjczMzY0OX0.njPUK266yGgwDh8a5GUCv4lOXjS0M7hF26jvDP2iUvw';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -37,7 +36,6 @@
 
     function renderPage(html) { document.getElementById('app').innerHTML = html; }
 
-    // ---------- LOAD BRANDING ----------
     async function loadBranding() {
         const { data, error } = await supabaseClient.from('branding').select('*').maybeSingle();
         if (!error && data) {
@@ -46,7 +44,6 @@
         }
     }
 
-    // ---------- LOGIN ----------
     function renderLogin() {
         renderPage(`
             <div style="max-width: 400px; margin: 80px auto;">
@@ -81,7 +78,7 @@
         } catch (err) { alert(err.message); }
     }
 
-    // ---------- ADMIN DASHBOARD (FIXED) ----------
+    // ---------- ADMIN DASHBOARD ----------
     async function renderAdminDashboard() {
         const [students, contents, uploads] = await Promise.all([
             supabaseClient.from('users').select('*', { count: 'exact' }).eq('role', 'student'),
@@ -114,33 +111,106 @@
         await loadBirthdayAlerts();
     }
 
+    // ----- FIXED loadStudentTable with working fee toggles -----
     async function loadStudentTable() {
         const { data: students } = await supabaseClient.from('users').select('*').eq('role', 'student');
-        if (!students) return;
+        if (!students || students.length === 0) {
+            document.getElementById('studentList').innerHTML = '<p>No students found.</p>';
+            return;
+        }
         let html = `<table><thead><tr><th>Name</th><th>Email</th><th>Fees (Jan-Jun 2026)</th><th>Action</th></tr></thead><tbody>`;
         for (const s of students) {
+            // Fetch fees for this student
             const { data: fees } = await supabaseClient.from('fees').select('*').eq('student_id', s.id).eq('academic_year', '2026');
             let feeHtml = '';
             const months = ['Jan','Feb','Mar','Apr','May','Jun'];
-            for (let i=0;i<6;i++) {
-                const paid = fees?.find(f=>f.month===months[i])?.paid || false;
-                feeHtml += `<button class="badge" style="background:${paid?'#10b981':'#ef4444'}; color:white;" onclick="window.toggleFee('${s.id}','${months[i]}')">${months[i]}</button> `;
+            for (let month of months) {
+                const feeRecord = fees?.find(f => f.month === month);
+                const paid = feeRecord ? feeRecord.paid : false;
+                feeHtml += `<button class="badge" style="background:${paid ? '#10b981' : '#ef4444'}; margin:2px;" data-student="${s.id}" data-month="${month}">${month}</button> `;
             }
-            html += `<tr><td>${s.full_name || s.email}</td><td>${s.email}</td><td>${feeHtml}</td><td><button class="btn-outline btn" onclick="window.viewProfile('${s.id}')">Profile</button></td></tr>`;
+            html += `<tr>
+                <td>${s.full_name || s.email}</td>
+                <td>${s.email}</td>
+                <td id="fee-cell-${s.id}">${feeHtml}</td>
+                <td><button class="btn-outline btn" onclick="window.viewProfile('${s.id}')">Profile</button></td>
+            </tr>`;
         }
         html += `</tbody></table>`;
         document.getElementById('studentList').innerHTML = html;
+
+        // Attach event listeners to fee buttons
+        for (const s of students) {
+            const feeButtons = document.querySelectorAll(`#fee-cell-${s.id} .badge`);
+            feeButtons.forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const studentId = btn.getAttribute('data-student');
+                    const month = btn.getAttribute('data-month');
+                    await toggleFee(studentId, month);
+                });
+            });
+        }
     }
 
-    window.toggleFee = async (studentId, month) => {
-        const { data: existing } = await supabaseClient.from('fees').select('*').eq('student_id', studentId).eq('month', month).eq('academic_year','2026').maybeSingle();
-        if (existing) {
-            await supabaseClient.from('fees').update({ paid: !existing.paid }).eq('id', existing.id);
-        } else {
-            await supabaseClient.from('fees').insert({ student_id: studentId, month, academic_year: '2026', paid: true });
+    async function toggleFee(studentId, month) {
+        console.log('Toggling fee for', studentId, month);
+        try {
+            // Check if fee record exists
+            const { data: existing, error: fetchError } = await supabaseClient
+                .from('fees')
+                .select('*')
+                .eq('student_id', studentId)
+                .eq('month', month)
+                .eq('academic_year', '2026')
+                .maybeSingle();
+            if (fetchError) throw fetchError;
+
+            if (existing) {
+                // Update existing
+                const newPaid = !existing.paid;
+                const { error: updateError } = await supabaseClient
+                    .from('fees')
+                    .update({ paid: newPaid })
+                    .eq('id', existing.id);
+                if (updateError) throw updateError;
+            } else {
+                // Insert new with paid = true
+                const { error: insertError } = await supabaseClient
+                    .from('fees')
+                    .insert({ student_id: studentId, month: month, academic_year: '2026', paid: true });
+                if (insertError) throw insertError;
+            }
+            // Refresh just this student's fee buttons
+            await refreshStudentFees(studentId);
+        } catch (err) {
+            console.error(err);
+            alert('Error updating fee: ' + err.message);
         }
-        await loadStudentTable(); // refresh table to update colors
-    };
+    }
+
+    async function refreshStudentFees(studentId) {
+        const { data: fees } = await supabaseClient.from('fees').select('*').eq('student_id', studentId).eq('academic_year', '2026');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun'];
+        let feeHtml = '';
+        for (let month of months) {
+            const feeRecord = fees?.find(f => f.month === month);
+            const paid = feeRecord ? feeRecord.paid : false;
+            feeHtml += `<button class="badge" style="background:${paid ? '#10b981' : '#ef4444'}; margin:2px;" data-student="${studentId}" data-month="${month}">${month}</button> `;
+        }
+        const cell = document.getElementById(`fee-cell-${studentId}`);
+        if (cell) {
+            cell.innerHTML = feeHtml;
+            // Reattach event listeners
+            const newButtons = cell.querySelectorAll('.badge');
+            newButtons.forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const sid = btn.getAttribute('data-student');
+                    const mon = btn.getAttribute('data-month');
+                    await toggleFee(sid, mon);
+                });
+            });
+        }
+    }
 
     window.viewProfile = async (studentId) => {
         const { data: stu } = await supabaseClient.from('users').select('*').eq('id', studentId).single();
@@ -149,11 +219,21 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
+    // ----- Content management -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
+        if (!contents || contents.length === 0) {
+            document.getElementById('contentList').innerHTML = '<p>No content yet. Add some!</p>';
+            return;
+        }
         let html = `<table><thead><tr><th>Title</th><th>Type</th><th>Access Control</th><th>Actions</th></tr></thead><tbody>`;
-        for (const c of contents || []) {
-            html += `<tr><td>${c.title}</td><td>${c.type}</td><td><button class="btn-outline btn" onclick="window.manageAccess('${c.id}')">Manage Access</button></td><td><button class="btn-outline btn" onclick="window.deleteContent('${c.id}')">Delete</button></td></tr>`;
+        for (const c of contents) {
+            html += `<tr>
+                <td>${c.title}</td>
+                <td>${c.type}</td>
+                <td><button class="btn-outline btn" onclick="window.manageAccess('${c.id}')">Manage Access</button></td>
+                <td><button class="btn-outline btn" onclick="window.deleteContent('${c.id}')">Delete</button></td>
+            </tr>`;
         }
         html += `</tbody></table>`;
         document.getElementById('contentList').innerHTML = html;
@@ -163,19 +243,16 @@
         const { data: students } = await supabaseClient.from('users').select('id,full_name').eq('role','student');
         const { data: existing } = await supabaseClient.from('content_access').select('student_id').eq('content_id', contentId);
         const existingIds = existing?.map(e=>e.student_id) || [];
-        let html = `<div class="card"><h3>Grant Access to Content</h3>`;
+        let modalHtml = `<div class="card"><h3>Grant Access to Content</h3>`;
         for (const s of students) {
             const checked = existingIds.includes(s.id);
-            html += `<label><input type="checkbox" id="acc_${s.id}" ${checked ? 'checked' : ''}> ${s.full_name || s.email}</label><br>`;
+            modalHtml += `<label><input type="checkbox" id="acc_${s.id}" ${checked ? 'checked' : ''}> ${s.full_name || s.email}</label><br>`;
         }
-        html += `<button class="btn" id="saveAccessBtn">Save</button> <button class="btn-outline btn" id="closeAccessBtn">Close</button></div>`;
+        modalHtml += `<button class="btn" id="saveAccessBtn">Save</button> <button class="btn-outline btn" id="closeAccessBtn">Close</button></div>`;
         const modal = document.createElement('div');
-        modal.id = 'accessModal';
         modal.style.position='fixed'; modal.style.top='0'; modal.style.left='0'; modal.style.width='100%'; modal.style.height='100%'; modal.style.background='rgba(0,0,0,0.7)'; modal.style.display='flex'; modal.style.alignItems='center'; modal.style.justifyContent='center'; modal.style.zIndex='1000';
-        modal.innerHTML = `<div style="max-width:500px; width:90%;">${html}</div>`;
+        modal.innerHTML = `<div style="max-width:500px; width:90%;">${modalHtml}</div>`;
         document.body.appendChild(modal);
-
-        // Attach event listeners after modal is in DOM
         document.getElementById('saveAccessBtn').onclick = async () => {
             for (const s of students) {
                 const isChecked = document.getElementById(`acc_${s.id}`).checked;
@@ -187,7 +264,7 @@
                 }
             }
             modal.remove();
-            loadContentTable(); // refresh
+            loadContentTable();
         };
         document.getElementById('closeAccessBtn').onclick = () => modal.remove();
     };
@@ -214,8 +291,12 @@
 
     async function loadPendingUploads() {
         const { data } = await supabaseClient.from('uploads').select('*, users(full_name)').eq('seen', false);
+        if (!data || data.length === 0) {
+            document.getElementById('pendingUploads').innerHTML = '<p>No pending uploads.</p>';
+            return;
+        }
         let html = `<table><thead><tr><th>Student</th><th>File</th><th>Action</th></tr></thead><tbody>`;
-        for (const u of data || []) {
+        for (const u of data) {
             html += `<tr><td>${u.users?.full_name || u.student_id}</td><td><a href="${u.file_url}" target="_blank">${u.file_name}</a></td><td><button class="btn" onclick="window.markSeen('${u.id}')">Mark Seen</button></td></tr>`;
         }
         html += `</tbody></table>`;
@@ -250,16 +331,18 @@
         const title = prompt('Title');
         const type = prompt('Type (video/pdf/audio)');
         const desc = prompt('Description');
-        if (title) await supabaseClient.from('contents').insert({ title, type, description: desc, created_at: new Date() });
-        loadContentTable();
+        if (title) {
+            await supabaseClient.from('contents').insert({ title, type, description: desc, created_at: new Date() });
+            loadContentTable();
+        }
     }
 
-    // ---------- STUDENT DASHBOARD (unchanged but works) ----------
+    // ---------- STUDENT DASHBOARD (simplified but working) ----------
     async function renderStudentDashboard() {
         renderPage(`
             <div class="flex-between"><h2>${currentUser.name}'s Portal</h2><div><button id="logoutBtnStu" class="btn-outline btn">Logout</button> <button id="themeBtnStu" class="btn-outline btn">🌓</button></div></div>
             <div class="card"><div class="flex-between"><h3>🏠 Home</h3><div id="studentStats"></div></div><div id="announcementsStu"></div></div>
-            <div class="card"><h3>📘 Contents <input type="text" id="searchContent" placeholder="Search..."><select id="sortContent"><option>Title A-Z</option><option>Newest</option></select></h3><div id="contentsStu"></div></div>
+            <div class="card"><h3>📘 Contents</h3><div id="contentsStu"></div></div>
             <div class="card"><h3>📈 My Progress</h3><input id="progressNote" placeholder="Practice note"><button class="btn" id="addProgressBtn">Add Entry</button><div id="progressList"></div></div>
             <div class="card"><h3>📂 My Files</h3><input type="file" id="fileUpload"><button class="btn" id="uploadFileBtn">Upload</button><div id="myFilesList"></div></div>
         `);
@@ -267,8 +350,6 @@
         document.getElementById('themeBtnStu')?.addEventListener('click', toggleTheme);
         document.getElementById('addProgressBtn')?.addEventListener('click', addProgress);
         document.getElementById('uploadFileBtn')?.addEventListener('click', uploadFile);
-        document.getElementById('searchContent')?.addEventListener('input', () => loadStudentContents());
-        document.getElementById('sortContent')?.addEventListener('change', () => loadStudentContents());
         await loadStudentAnnouncements();
         await loadStudentContents();
         await loadStudentProgress();
@@ -284,15 +365,12 @@
     async function loadStudentContents() {
         const { data: accessible } = await supabaseClient.from('content_access').select('content_id').eq('student_id', currentUser.id);
         const accessibleIds = accessible?.map(a=>a.content_id) || [];
-        if (accessibleIds.length === 0) { document.getElementById('contentsStu').innerHTML = '<p>No content accessible yet.</p>'; return; }
+        if (accessibleIds.length === 0) {
+            document.getElementById('contentsStu').innerHTML = '<p>No content accessible yet.</p>';
+            return;
+        }
         const { data } = await supabaseClient.from('contents').select('*').in('id', accessibleIds);
-        let filtered = data || [];
-        const search = document.getElementById('searchContent')?.value.toLowerCase();
-        if (search) filtered = filtered.filter(c=>c.title.toLowerCase().includes(search));
-        const sort = document.getElementById('sortContent')?.value;
-        if (sort === 'Title A-Z') filtered.sort((a,b)=>a.title.localeCompare(b.title));
-        else filtered.sort((a,b)=>new Date(b.created_at) - new Date(a.created_at));
-        document.getElementById('contentsStu').innerHTML = filtered.map(c=>`<div class="card" style="margin-bottom:8px;"><strong>${c.title}</strong> (${c.type})<br>${c.description || ''}<br><a href="${c.file_url}" target="_blank">Open</a></div>`).join('');
+        document.getElementById('contentsStu').innerHTML = data?.map(c=>`<div class="card" style="margin-bottom:8px;"><strong>${c.title}</strong> (${c.type})<br>${c.description || ''}<br><a href="${c.file_url}" target="_blank">Open</a></div>`).join('') || '';
     }
 
     async function loadStudentProgress() {
@@ -333,7 +411,6 @@
     function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); }
     function logout() { currentUser = null; renderLogin(); }
 
-    // ---------- INIT ----------
     (async function start() {
         try {
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
