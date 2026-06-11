@@ -101,7 +101,6 @@
     // ---------- SUPABASE CONFIG ----------
     const SUPABASE_URL = 'https://ktjlmpriqxghclekqxro.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0amxtcHJpcXhnaGNsZWtxeHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTc2NDksImV4cCI6MjA5NjczMzY0OX0.njPUK266yGgwDh8a5GUCv4lOXjS0M7hF26jvDP2iUvw';
-    // Renamed to avoid conflict with global 'supabase' from the CDN
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let currentUser = null;
@@ -149,8 +148,10 @@
         try {
             const { data, error } = await supabaseClient.from('users').select('*').eq('email', email).maybeSingle();
             if (error || !data) throw new Error('Invalid credentials');
-            if (data.password_hash !== pwd) throw new Error('Wrong password');
-            currentUser = { id: data.id, email: data.email, role: data.role, name: data.name };
+            // Use 'password' column (plain text)
+            if (data.password !== pwd) throw new Error('Wrong password');
+            // Use 'full_name' column from your schema
+            currentUser = { id: data.id, email: data.email, role: data.role, name: data.full_name || data.email.split('@')[0] };
             if (data.role === 'admin') renderAdminDashboard();
             else renderStudentDashboard();
         } catch (err) {
@@ -206,7 +207,7 @@
                 feeHtml += `<button class="badge" style="background:${paid?'#10b981':'#ef4444'}" onclick="toggleFee('${s.id}','${months[i]}')">${months[i]}</button> `;
             }
             html += `<tr>
-                <td>${s.name}</td>
+                <td>${s.full_name || s.name || s.email}</td>
                 <td>${s.email}</td>
                 <td>${feeHtml}</td>
                 <td><button class="btn-outline btn" onclick="viewProfile('${s.id}')">Profile</button></td>
@@ -227,7 +228,7 @@
         const { data: stu } = await supabaseClient.from('users').select('*').eq('id', studentId).single();
         const { data: progress } = await supabaseClient.from('progress').select('*').eq('student_id', studentId);
         const { data: contentAccess } = await supabaseClient.from('content_access').select('*, contents(*)').eq('student_id', studentId);
-        alert(`Profile: ${stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
+        alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
     async function loadContentTable() {
@@ -248,13 +249,13 @@
     }
 
     window.manageAccess = async (contentId) => {
-        const { data: students } = await supabaseClient.from('users').select('id,name').eq('role','student');
+        const { data: students } = await supabaseClient.from('users').select('id,full_name').eq('role','student');
         const { data: existing } = await supabaseClient.from('content_access').select('student_id').eq('content_id', contentId);
         const existingIds = existing?.map(e=>e.student_id) || [];
         let html = `<div class="card"><h3>Grant Access to Content</h3>`;
         for (const s of students) {
             const checked = existingIds.includes(s.id);
-            html += `<label><input type="checkbox" id="acc_${s.id}" ${checked ? 'checked' : ''}> ${s.name}</label><br>`;
+            html += `<label><input type="checkbox" id="acc_${s.id}" ${checked ? 'checked' : ''}> ${s.full_name || s.email}</label><br>`;
         }
         html += `<button class="btn" id="saveAccessBtn">Save</button><button class="btn-outline btn" id="closeAccessBtn">Close</button></div>`;
         const modal = document.createElement('div');
@@ -293,13 +294,13 @@
     }
 
     async function loadPendingUploads() {
-        const { data } = await supabaseClient.from('uploads').select('*, users(name)').eq('seen', false);
+        const { data } = await supabaseClient.from('uploads').select('*, users(full_name)').eq('seen', false);
         let html = `<table>
             <thead><tr><th>Student</th><th>File</th><th>Action</th></tr></thead>
             <tbody>`;
         for (const u of data || []) {
             html += `<tr>
-                <td>${u.users?.name || u.student_id}</td>
+                <td>${u.users?.full_name || u.student_id}</td>
                 <td><a href="${u.file_url}" target="_blank">${u.file_name}</a></td>
                 <td><button class="btn" onclick="markSeen('${u.id}')">Mark Seen</button></td>
             </tr>`;
@@ -311,19 +312,27 @@
     window.markSeen = async (id) => { await supabaseClient.from('uploads').update({ seen: true }).eq('id', id); loadPendingUploads(); };
 
     async function loadBirthdayAlerts() {
-        const { data } = await supabaseClient.from('users').select('name,birthday,joining_date').eq('role','student');
+        const { data } = await supabaseClient.from('users').select('full_name,birth_date,joining_date').eq('role','student');
         const today = new Date();
         const monthDay = `${today.getMonth()+1}-${today.getDate()}`;
-        const bday = data?.filter(s=>s.birthday?.slice(5)===monthDay) || [];
+        const bday = data?.filter(s=>s.birth_date?.slice(5)===monthDay) || [];
         const anni = data?.filter(s=>s.joining_date?.slice(5)===monthDay) || [];
-        document.getElementById('bdayAlert').innerHTML = `<p>🎂 Birthday: ${bday.map(b=>b.name).join(', ') || 'None'}</p><p>🎉 Anniversary: ${anni.map(a=>a.name).join(', ') || 'None'}</p>`;
+        document.getElementById('bdayAlert').innerHTML = `<p>🎂 Birthday: ${bday.map(b=>b.full_name).join(', ') || 'None'}</p><p>🎉 Anniversary: ${anni.map(a=>a.full_name).join(', ') || 'None'}</p>`;
     }
 
     async function showAddStudentModal() {
-        const name = prompt('Student Name');
+        const name = prompt('Full Name');
         const email = prompt('Email');
         const pwd = prompt('Temporary password');
-        if (name && email && pwd) await supabaseClient.from('users').insert({ name, email, password_hash: pwd, role: 'student' });
+        if (name && email && pwd) {
+            await supabaseClient.from('users').insert({ 
+                full_name: name, 
+                email, 
+                password: pwd, 
+                role: 'student',
+                access_approved: true
+            });
+        }
         loadStudentTable();
     }
 
