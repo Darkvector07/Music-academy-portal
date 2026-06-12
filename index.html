@@ -29,12 +29,8 @@
 
 <script>
     // ============================================================
-    // DATABASE FIX (run in Supabase SQL editor if you still get constraint error):
-    // ALTER TABLE contents DROP CONSTRAINT IF EXISTS contents_type_check;
-    // ALTER TABLE contents ADD CONSTRAINT contents_type_check 
-    // CHECK (type IN ('video', 'pdf', 'audio', 'document', 'Video', 'PDF', 'Audio', 'Document'));
+    // SUPABASE CONFIGURATION (DO NOT CHANGE)
     // ============================================================
-
     const SUPABASE_URL = 'https://ktjlmpriqxghclekqxro.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0amxtcHJpcXhnaGNsZWtxeHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTc2NDksImV4cCI6MjA5NjczMzY0OX0.njPUK266yGgwDh8a5GUCv4lOXjS0M7hF26jvDP2iUvw';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -43,6 +39,7 @@
 
     function renderPage(html) { document.getElementById('app').innerHTML = html; }
 
+    // ---------- LOAD BRANDING ----------
     async function loadBranding() {
         const { data, error } = await supabaseClient.from('branding').select('*').maybeSingle();
         if (!error && data) {
@@ -51,6 +48,7 @@
         }
     }
 
+    // ---------- LOGIN PAGE ----------
     function renderLogin() {
         renderPage(`
             <div style="max-width: 400px; margin: 80px auto;">
@@ -158,14 +156,13 @@
 
     async function toggleFee(studentId, month, buttonElement) {
         try {
-            const { data: existing, error: fetchError } = await supabaseClient
+            const { data: existing } = await supabaseClient
                 .from('fees')
                 .select('*')
                 .eq('student_id', studentId)
                 .eq('month', month)
                 .eq('academic_year', '2026')
                 .maybeSingle();
-            if (fetchError) throw fetchError;
 
             let newPaid;
             if (existing) {
@@ -188,7 +185,7 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
-    // ----- Content Management with type validation -----
+    // ----- Content Management -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
         if (!contents || contents.length === 0) {
@@ -243,43 +240,28 @@
         loadContentTable(); 
     };
 
-    // FIXED: Prevents constraint violation by using allowed types and auto-adding https://
     async function showAddContentModal() {
         const title = prompt('📘 Content Title:');
         if (!title) return;
-        
         let type = prompt('📁 Type (video / pdf / audio / document):');
         if (!type) return;
         type = type.toLowerCase().trim();
         const allowedTypes = ['video', 'pdf', 'audio', 'document'];
         if (!allowedTypes.includes(type)) {
-            alert('Invalid type. Please use one of: video, pdf, audio, document');
+            alert('Invalid type. Use: video, pdf, audio, document');
             return;
         }
-        
         const description = prompt('📝 Description (optional):');
-        let fileUrl = prompt('🔗 Google Drive or external file URL:\nExample: https://drive.google.com/file/d/...');
+        let fileUrl = prompt('🔗 Google Drive or external file URL:');
         if (!fileUrl) return;
-        
-        // Auto-add https:// if missing
         if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
             fileUrl = 'https://' + fileUrl;
         }
-
         const { error } = await supabaseClient.from('contents').insert({
-            title: title,
-            type: type,
-            description: description || '',
-            file_url: fileUrl,
-            created_at: new Date()
+            title, type, description: description || '', file_url: fileUrl, created_at: new Date()
         });
-        
-        if (error) {
-            alert('Error adding content: ' + error.message);
-        } else {
-            loadContentTable();
-            alert('✅ Content added! Grant access to students via "Manage Access".');
-        }
+        if (error) alert('Error: ' + error.message);
+        else { loadContentTable(); alert('✅ Content added!'); }
     }
 
     async function loadAnnouncements() {
@@ -295,7 +277,7 @@
         document.getElementById('announceTitle').value = '';
         document.getElementById('announceMsg').value = '';
         loadAnnouncements();
-        alert('Announcement posted! Student will see it after clicking Refresh.');
+        alert('Announcement posted! Student sees after Refresh.');
     }
 
     async function loadPendingUploads() {
@@ -312,7 +294,7 @@
                 <td><button class="btn" onclick="window.markSeen('${u.id}')">Mark Seen</button></td>
             </tr>`;
         }
-        html += `</tbody></table>`;
+        html += `</tbody></tr>`;
         document.getElementById('pendingUploads').innerHTML = html;
     }
 
@@ -354,7 +336,7 @@
             <div class="card"><div class="flex-between"><h3>🏠 Home</h3><div id="studentStats"></div></div><div id="announcementsStu"></div></div>
             <div class="card"><h3>📘 Contents</h3><div id="contentsStu"></div></div>
             <div class="card"><h3>📈 My Progress</h3><input id="progressNote" placeholder="Practice note"><button class="btn" id="addProgressBtn">Add Entry</button><div id="progressList"></div></div>
-            <div class="card"><h3>📂 My Files</h3><input type="file" id="fileUpload"><button class="btn" id="uploadFileBtn">Upload</button><div id="myFilesList"></div></div>
+            <div class="card"><h3>📂 My Files</h3><input type="file" id="fileUpload"><button class="btn" id="uploadFileBtn">Upload to Google Drive</button><div id="myFilesList"></div></div>
         `);
         document.getElementById('logoutBtnStu')?.addEventListener('click', logout);
         document.getElementById('themeBtnStu')?.addEventListener('click', toggleTheme);
@@ -404,11 +386,12 @@
     }
 
     async function loadStudentFiles() {
+        // This now shows files saved in Supabase 'uploads' table (if any)
         const { data } = await supabaseClient.from('uploads').select('*').eq('student_id', currentUser.id);
-        document.getElementById('myFilesList').innerHTML = data?.map(f=>`<div><a href="${f.file_url}" target="_blank">${f.file_name}</a> <small>${new Date(f.created_at).toLocaleString()}</small></div>`).join('') || 'No files uploaded';
+        document.getElementById('myFilesList').innerHTML = data?.map(f=>`<div><a href="${f.file_url}" target="_blank">${f.file_name}</a> <small>${new Date(f.created_at).toLocaleString()}</small></div>`).join('') || 'No files uploaded yet.';
     }
 
-    // NEW: Upload file to Google Drive using Apps Script
+    // ========== UPLOAD TO GOOGLE DRIVE (UPDATED WORKING VERSION) ==========
     async function uploadFile() {
         const fileInput = document.getElementById('fileUpload');
         const file = fileInput.files[0];
@@ -422,7 +405,6 @@
         const uploadDate = today.toISOString().split('T')[0];
         const originalFileName = file.name;
 
-        // Create a FormData object to send the file and metadata
         const formData = new FormData();
         formData.append('file', file);
         formData.append('studentName', studentName);
@@ -434,27 +416,31 @@
         uploadBtn.textContent = 'Uploading...';
 
         try {
-            // Replace with your actual Google Apps Script URL
+            // ✅ YOUR GOOGLE APPS SCRIPT URL
             const GAS_URL = 'https://script.google.com/macros/s/AKfycbxSPB2VJn5X7HkK4MLXQQZQ6SL_2lxrqPp2cZfJ88Cwkj9_B-TJoIUsac7IkMN0axdq/exec';
             
             const response = await fetch(GAS_URL, {
                 method: 'POST',
-                mode: 'no-cors', // Required for cross-origin requests to Google Apps Script
+                mode: 'cors',
                 body: formData
             });
             
-            alert('✅ File uploaded successfully to Google Drive!');
-            fileInput.value = '';
-            
-            // Optional: Refresh the student's file list (if you want to show uploaded files)
-            // await loadStudentFiles();
-            
+            const result = await response.json();
+            if (result.success) {
+                alert(`✅ File uploaded to Google Drive!\nSaved as: ${result.fileName}\nURL: ${result.fileUrl}`);
+                fileInput.value = '';
+                // Optionally save a reference in Supabase (if you want to show in "My Files")
+                // await supabaseClient.from('uploads').insert({ student_id: currentUser.id, file_name: result.fileName, file_url: result.fileUrl, seen: false });
+                // await loadStudentFiles();  // uncomment if you want to list Drive files in portal
+            } else {
+                alert(`❌ Upload failed: ${result.error}`);
+            }
         } catch (error) {
             console.error('Upload error:', error);
-            alert('❌ Upload failed: ' + error.message);
+            alert('❌ Upload failed: ' + error.message + '\nCheck console for details.');
         } finally {
             uploadBtn.disabled = false;
-            uploadBtn.textContent = 'Upload File';
+            uploadBtn.textContent = 'Upload to Google Drive';
         }
     }
 
@@ -463,9 +449,11 @@
         document.getElementById('studentStats').innerHTML = `<p>✅ Progress entries: ${progress?.length || 0}</p>`;
     }
 
+    // ==================== HELPERS ====================
     function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); }
     function logout() { currentUser = null; renderLogin(); }
 
+    // ==================== INIT ====================
     (async function start() {
         try {
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
