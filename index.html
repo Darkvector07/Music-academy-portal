@@ -28,6 +28,13 @@
 <div id="app" class="container"></div>
 
 <script>
+    // ============================================================
+    // ONE-TIME SQL FIX (run in Supabase SQL editor if you still get constraint error):
+    // ALTER TABLE contents DROP CONSTRAINT IF EXISTS contents_type_check;
+    // ALTER TABLE contents ADD CONSTRAINT contents_type_check 
+    // CHECK (type IN ('video', 'pdf', 'audio', 'document', 'Video', 'PDF', 'Audio', 'Document'));
+    // ============================================================
+
     const SUPABASE_URL = 'https://ktjlmpriqxghclekqxro.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0amxtcHJpcXhnaGNsZWtxeHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTc2NDksImV4cCI6MjA5NjczMzY0OX0.njPUK266yGgwDh8a5GUCv4lOXjS0M7hF26jvDP2iUvw';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -136,7 +143,7 @@
                 <td><button class="btn-outline btn" onclick="window.viewProfile('${s.id}')">Profile</button></td>
             </tr>`;
         }
-        html += `</tbody></table>`;
+        html += `</tbody></tr>`;
         document.getElementById('studentList').innerHTML = html;
 
         document.querySelectorAll('.fee-btn').forEach(btn => {
@@ -181,14 +188,14 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
-    // ----- Content Management (fixed URL input) -----
+    // ----- Content Management with type validation -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
         if (!contents || contents.length === 0) {
             document.getElementById('contentList').innerHTML = '<p>No content yet. Add some!</p>';
             return;
         }
-        let html = `</table><thead><tr><th>Title</th><th>Type</th><th>Access Control</th><th>Actions</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Title</th><th>Type</th><th>Access Control</th><th>Actions</th></tr></thead><tbody>`;
         for (const c of contents) {
             html += `<tr>
                 <td>${c.title}</td>
@@ -236,16 +243,24 @@
         loadContentTable(); 
     };
 
-    // IMPROVED: auto-add https:// and validate URL
+    // FIXED: Prevents constraint violation by using allowed types and auto-adding https://
     async function showAddContentModal() {
         const title = prompt('📘 Content Title:');
         if (!title) return;
-        const type = prompt('📁 Type (video / pdf / audio / document):');
+        
+        let type = prompt('📁 Type (video / pdf / audio / document):');
         if (!type) return;
+        type = type.toLowerCase().trim();
+        const allowedTypes = ['video', 'pdf', 'audio', 'document'];
+        if (!allowedTypes.includes(type)) {
+            alert('Invalid type. Please use one of: video, pdf, audio, document');
+            return;
+        }
+        
         const description = prompt('📝 Description (optional):');
-        let fileUrl = prompt('🔗 Google Drive or external file URL:\nExample: https://drive.google.com/file/d/.../view?usp=sharing');
+        let fileUrl = prompt('🔗 Google Drive or external file URL:\nExample: https://drive.google.com/file/d/...');
         if (!fileUrl) return;
-
+        
         // Auto-add https:// if missing
         if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
             fileUrl = 'https://' + fileUrl;
@@ -253,16 +268,17 @@
 
         const { error } = await supabaseClient.from('contents').insert({
             title: title,
-            type: type.toLowerCase(),
+            type: type,
             description: description || '',
             file_url: fileUrl,
             created_at: new Date()
         });
+        
         if (error) {
-            alert('Error: ' + error.message);
+            alert('Error adding content: ' + error.message);
         } else {
             loadContentTable();
-            alert('✅ Content added! Students with access will see the link.');
+            alert('✅ Content added! Grant access to students via "Manage Access".');
         }
     }
 
