@@ -118,7 +118,7 @@
             document.getElementById('studentList').innerHTML = '<p>No students found.</p>';
             return;
         }
-        let html = `</table><thead><tr><th>Name</th><th>Email</th><th>Fees (Jan-Jun 2026)</th><th>Action</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Name</th><th>Email</th><th>Fees (Jan-Jun 2026)</th><th>Action</th></tr></thead><tbody>`;
         for (const s of students) {
             const { data: fees } = await supabaseClient.from('fees').select('*').eq('student_id', s.id).eq('academic_year', '2026');
             const months = ['Jan','Feb','Mar','Apr','May','Jun'];
@@ -139,7 +139,6 @@
         html += `</tbody></table>`;
         document.getElementById('studentList').innerHTML = html;
 
-        // Attach click handlers to all fee buttons
         document.querySelectorAll('.fee-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -164,21 +163,13 @@
             let newPaid;
             if (existing) {
                 newPaid = !existing.paid;
-                const { error: updateError } = await supabaseClient
-                    .from('fees')
-                    .update({ paid: newPaid })
-                    .eq('id', existing.id);
-                if (updateError) throw updateError;
+                await supabaseClient.from('fees').update({ paid: newPaid }).eq('id', existing.id);
             } else {
                 newPaid = true;
-                const { error: insertError } = await supabaseClient
-                    .from('fees')
-                    .insert({ student_id: studentId, month: month, academic_year: '2026', paid: true });
-                if (insertError) throw insertError;
+                await supabaseClient.from('fees').insert({ student_id: studentId, month: month, academic_year: '2026', paid: true });
             }
             buttonElement.style.backgroundColor = newPaid ? '#10b981' : '#ef4444';
         } catch (err) {
-            console.error(err);
             alert('Failed to update fee: ' + err.message);
         }
     }
@@ -190,14 +181,14 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
-    // ----- Content Management (with Google Drive / external links) -----
+    // ----- Content Management (fixed URL input) -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
         if (!contents || contents.length === 0) {
             document.getElementById('contentList').innerHTML = '<p>No content yet. Add some!</p>';
             return;
         }
-        let html = `<table><thead><tr><th>Title</th><th>Type</th><th>Access Control</th><th>Actions</th></tr></thead><tbody>`;
+        let html = `</table><thead><tr><th>Title</th><th>Type</th><th>Access Control</th><th>Actions</th></tr></thead><tbody>`;
         for (const c of contents) {
             html += `<tr>
                 <td>${c.title}</td>
@@ -245,24 +236,34 @@
         loadContentTable(); 
     };
 
-    // Modified: Add content with Google Drive / external link
+    // IMPROVED: auto-add https:// and validate URL
     async function showAddContentModal() {
         const title = prompt('📘 Content Title:');
         if (!title) return;
         const type = prompt('📁 Type (video / pdf / audio / document):');
         if (!type) return;
         const description = prompt('📝 Description (optional):');
-        const fileUrl = prompt('🔗 Google Drive or external file URL:\nExample: https://drive.google.com/file/d/.../view?usp=sharing');
+        let fileUrl = prompt('🔗 Google Drive or external file URL:\nExample: https://drive.google.com/file/d/.../view?usp=sharing');
         if (!fileUrl) return;
-        await supabaseClient.from('contents').insert({
+
+        // Auto-add https:// if missing
+        if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
+            fileUrl = 'https://' + fileUrl;
+        }
+
+        const { error } = await supabaseClient.from('contents').insert({
             title: title,
             type: type.toLowerCase(),
             description: description || '',
             file_url: fileUrl,
             created_at: new Date()
         });
-        loadContentTable();
-        alert('✅ Content added! Students with access will see the link.');
+        if (error) {
+            alert('Error: ' + error.message);
+        } else {
+            loadContentTable();
+            alert('✅ Content added! Students with access will see the link.');
+        }
     }
 
     async function loadAnnouncements() {
@@ -408,11 +409,9 @@
         document.getElementById('studentStats').innerHTML = `<p>✅ Progress entries: ${progress?.length || 0}</p>`;
     }
 
-    // ==================== HELPERS ====================
     function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); }
     function logout() { currentUser = null; renderLogin(); }
 
-    // ==================== INIT ====================
     (async function start() {
         try {
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
