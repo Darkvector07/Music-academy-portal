@@ -29,7 +29,7 @@
 
 <script>
     // ============================================================
-    // ONE-TIME SQL FIX (run in Supabase SQL editor if you still get constraint error):
+    // DATABASE FIX (run in Supabase SQL editor if you still get constraint error):
     // ALTER TABLE contents DROP CONSTRAINT IF EXISTS contents_type_check;
     // ALTER TABLE contents ADD CONSTRAINT contents_type_check 
     // CHECK (type IN ('video', 'pdf', 'audio', 'document', 'Video', 'PDF', 'Audio', 'Document'));
@@ -143,7 +143,7 @@
                 <td><button class="btn-outline btn" onclick="window.viewProfile('${s.id}')">Profile</button></td>
             </tr>`;
         }
-        html += `</tbody></tr>`;
+        html += `</tbody></table>`;
         document.getElementById('studentList').innerHTML = html;
 
         document.querySelectorAll('.fee-btn').forEach(btn => {
@@ -408,16 +408,54 @@
         document.getElementById('myFilesList').innerHTML = data?.map(f=>`<div><a href="${f.file_url}" target="_blank">${f.file_name}</a> <small>${new Date(f.created_at).toLocaleString()}</small></div>`).join('') || 'No files uploaded';
     }
 
+    // NEW: Upload file to Google Drive using Apps Script
     async function uploadFile() {
-        const file = document.getElementById('fileUpload').files[0];
-        if (!file) return;
-        const fileName = `${Date.now()}_${file.name}`;
-        const { error } = await supabaseClient.storage.from('uploads').upload(fileName, file);
-        if (error) { alert('Upload failed: ' + error.message); return; }
-        const { data: urlData } = supabaseClient.storage.from('uploads').getPublicUrl(fileName);
-        await supabaseClient.from('uploads').insert({ student_id: currentUser.id, file_name: file.name, file_url: urlData.publicUrl, seen: false });
-        alert('Uploaded!');
-        loadStudentFiles();
+        const fileInput = document.getElementById('fileUpload');
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('Please select a file first.');
+            return;
+        }
+
+        const studentName = currentUser.name || currentUser.email.split('@')[0];
+        const today = new Date();
+        const uploadDate = today.toISOString().split('T')[0];
+        const originalFileName = file.name;
+
+        // Create a FormData object to send the file and metadata
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('studentName', studentName);
+        formData.append('uploadDate', uploadDate);
+        formData.append('fileName', originalFileName);
+
+        const uploadBtn = document.getElementById('uploadFileBtn');
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+
+        try {
+            // Replace with your actual Google Apps Script URL
+            const GAS_URL = 'https://script.google.com/macros/s/AKfycbxSPB2VJn5X7HkK4MLXQQZQ6SL_2lxrqPp2cZfJ88Cwkj9_B-TJoIUsac7IkMN0axdq/exec';
+            
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Required for cross-origin requests to Google Apps Script
+                body: formData
+            });
+            
+            alert('✅ File uploaded successfully to Google Drive!');
+            fileInput.value = '';
+            
+            // Optional: Refresh the student's file list (if you want to show uploaded files)
+            // await loadStudentFiles();
+            
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert('❌ Upload failed: ' + error.message);
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload File';
+        }
     }
 
     async function loadStudentStats() {
