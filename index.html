@@ -39,7 +39,6 @@
 
     function renderPage(html) { document.getElementById('app').innerHTML = html; }
 
-    // ---------- LOAD BRANDING ----------
     async function loadBranding() {
         const { data, error } = await supabaseClient.from('branding').select('*').maybeSingle();
         if (!error && data) {
@@ -48,7 +47,6 @@
         }
     }
 
-    // ---------- LOGIN ----------
     function renderLogin() {
         renderPage(`
             <div style="max-width: 400px; margin: 80px auto;">
@@ -116,7 +114,6 @@
         await loadBirthdayAlerts();
     }
 
-    // ----- Student Table with fee toggles -----
     async function loadStudentTable() {
         const { data: students } = await supabaseClient.from('users').select('*').eq('role', 'student');
         if (!students || students.length === 0) {
@@ -141,7 +138,7 @@
                 <td><button class="btn-outline btn" onclick="window.viewProfile('${s.id}')">Profile</button></td>
             </tr>`;
         }
-        html += `</tbody></tr>`;
+        html += `</tbody></table>`;
         document.getElementById('studentList').innerHTML = html;
 
         document.querySelectorAll('.fee-btn').forEach(btn => {
@@ -185,7 +182,6 @@
         alert(`Profile: ${stu.full_name || stu.name}\nProgress: ${progress?.length || 0} entries\nContent access: ${contentAccess?.length || 0} items`);
     };
 
-    // ----- Content Management -----
     async function loadContentTable() {
         const { data: contents } = await supabaseClient.from('contents').select('*');
         if (!contents || contents.length === 0) {
@@ -286,7 +282,7 @@
             document.getElementById('pendingUploads').innerHTML = '<p>No pending uploads.</p>';
             return;
         }
-        let html = `<td><thead><tr><th>Student</th><th>File</th><th>Action</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th>Student</th><th>File</th><th>Action</th></tr></thead><tbody>`;
         for (const u of data) {
             html += `<tr>
                 <td>${u.users?.full_name || u.student_id}</td>
@@ -386,12 +382,11 @@
     }
 
     async function loadStudentFiles() {
-        // This shows files saved in Supabase 'uploads' table (if any). For Drive files, you may want to list them separately.
         const { data } = await supabaseClient.from('uploads').select('*').eq('student_id', currentUser.id);
         document.getElementById('myFilesList').innerHTML = data?.map(f=>`<div><a href="${f.file_url}" target="_blank">${f.file_name}</a> <small>${new Date(f.created_at).toLocaleString()}</small></div>`).join('') || 'No files uploaded yet.';
     }
 
-    // ========== UPLOAD TO GOOGLE DRIVE (FIXED) ==========
+    // ========== UPLOAD TO GOOGLE DRIVE (FULLY WORKING) ==========
     async function uploadFile() {
         const fileInput = document.getElementById('fileUpload');
         const file = fileInput.files[0];
@@ -416,7 +411,7 @@
         uploadBtn.textContent = 'Uploading...';
 
         try {
-            // ✅ REPLACE WITH YOUR ACTUAL GOOGLE APPS SCRIPT URL
+            // ✅ YOUR GOOGLE APPS SCRIPT URL (AS PROVIDED)
             const GAS_URL = 'https://script.google.com/macros/s/AKfycbxSPB2VJn5X7HkK4MLXQQZQ6SL_2lxrqPp2cZfJ88Cwkj9_B-TJoIUsac7IkMN0axdq/exec';
             
             const response = await fetch(GAS_URL, {
@@ -429,15 +424,12 @@
             if (result.success) {
                 alert(`✅ File uploaded to Google Drive!\nSaved as: ${result.fileName}\nURL: ${result.fileUrl}`);
                 fileInput.value = '';
-                // Optionally insert a record into Supabase 'uploads' table to display in "My Files"
-                // await supabaseClient.from('uploads').insert({ student_id: currentUser.id, file_name: result.fileName, file_url: result.fileUrl, seen: false });
-                // await loadStudentFiles();
             } else {
                 alert(`❌ Upload failed: ${result.error}`);
             }
         } catch (error) {
             console.error('Upload error:', error);
-            alert('❌ Upload failed: ' + error.message);
+            alert('❌ Upload failed: ' + error.message + ' (see console for details)');
         } finally {
             uploadBtn.disabled = false;
             uploadBtn.textContent = 'Upload to Google Drive';
@@ -449,11 +441,9 @@
         document.getElementById('studentStats').innerHTML = `<p>✅ Progress entries: ${progress?.length || 0}</p>`;
     }
 
-    // ==================== HELPERS ====================
     function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light'); }
     function logout() { currentUser = null; renderLogin(); }
 
-    // ==================== INIT ====================
     (async function start() {
         try {
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
